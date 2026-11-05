@@ -38,7 +38,7 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-APP_VERSION = "0.3"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
+APP_VERSION = "0.4"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
 BASE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE, "app")
 DB_PATH = os.path.join(BASE, "cantiere.db")
@@ -489,6 +489,16 @@ def update_log_tail(n=3):
         return "nessun dettaglio"
 
 
+def update_step():
+    """A che punto è update.py, letto da update.log: 0 avvio, 1 copia del db, 2 file installati, 3 riavvio."""
+    try:
+        with open(UPDATE_LOG) as f:
+            log = f.read()
+    except OSError:
+        return 0
+    return 3 if "avviato" in log or "Fatto" in log else 2 if "Aggiornati" in log else 1 if "Copia del database" in log else 0
+
+
 def update_status():
     cur = installed_version()
     with _upd_lock:
@@ -497,6 +507,7 @@ def update_status():
         return {"version": APP_VERSION, "installed": cur, "latest": latest, "checked": _upd["checked"], "error": _upd["error"],
                 "available": bool(latest and latest["sha"] != cur["sha"]),
                 "running": bool(proc and code is None),
+                "step": update_step() if proc and code is None else None,
                 "failed": update_log_tail() if proc and code not in (None, 0) else None}
 
 

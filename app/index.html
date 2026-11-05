@@ -145,6 +145,15 @@ input,select,textarea{font:inherit;font-size:16px;color:var(--fg);background:var
 #attachBtn{background:transparent;border:1px solid var(--line)}
 #sendBtn svg,#attachBtn svg{width:20px;height:20px}
 
+/* con la tastiera aperta non serve lo spazio per la barra home dell'iPhone */
+body.kb .composer{padding-bottom:8px}
+/* ---- aggiornamento ---- */
+#updOverlay{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.45);display:grid;place-items:center;padding:24px}
+#updOverlay .card{background:var(--card);border-radius:14px;padding:20px;width:min(360px,100%);box-shadow:0 10px 40px rgba(0,0,0,.25)}
+#updOverlay h2{margin:0 0 12px;font-size:1.1rem}
+.bar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .6s ease}
+#updOverlay p{margin:10px 0 0;font-size:.88rem;color:var(--muted)}
 /* ---- finestre ---- */
 dialog{border:0;border-radius:14px;padding:0;background:var(--card);color:var(--fg);width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 40px);box-shadow:0 10px 40px rgba(0,0,0,.25)}
 dialog::backdrop{background:rgba(0,0,0,.35)}
@@ -289,6 +298,12 @@ textarea.notes{min-height:180px;font:.82rem/1.45 var(--mono)}
   </div>
   <footer><button type="button" class="btn danger" id="logoutBtn">Esci da questo dispositivo</button><button class="btn" value="cancel">Chiudi</button></footer>
 </form></dialog>
+
+<div id="updOverlay" hidden><div class="card" role="status">
+  <h2>Aggiornamento in corso</h2>
+  <div class="bar"><i id="updBar"></i></div>
+  <p id="updStep">Avvio…</p>
+</div></div>
 
 <script src="app.js"></script>
 </body>

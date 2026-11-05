@@ -380,16 +380,30 @@ async function runUpdate() {
   if (!confirm("Aggiornare Cantiere adesso? Il server si riavvia: le risposte in corso si interrompono.")) return;
   const go = $("#updGo"), before = (await api("/api/update")).installed.sha;
   go.disabled = true; $("#updTop").disabled = true;
-  toast("Aggiornamento in corso: non chiudere l'app…");
-  try { await api("/api/update/run", { method: "POST", body: {} }); } catch (e) { if (!/già in corso/.test(e.message)) { toast(e.message, true); go.disabled = false; return; } }
-  $("#updStatus").textContent = "Aggiornamento in corso: copia del database, download e riavvio. Non chiudere l'app…";
-  for (let i = 0; i < 40; i++) {
-    await new Promise(r => setTimeout(r, 3000));
-    let s; try { s = await api("/api/update"); } catch { continue; }   // durante il riavvio il NAS non risponde
-    if (s.failed) return paintUpdate(s);
-    if (!s.running && s.installed.sha !== before) { toast("App aggiornata: la ricarico"); setTimeout(() => location.reload(), 1200); return; }
+  try { await api("/api/update/run", { method: "POST", body: {} }); } catch (e) { if (!/già in corso/.test(e.message)) { toast(e.message, true); go.disabled = false; $("#updTop").disabled = false; return; } }
+  /* barra: ogni fase ha un tratto; dentro la fase avanza piano da sola finché il NAS non passa alla successiva */
+  const STEPS = [[0, 15, "Avvio…"], [15, 40, "Copia del database…"], [40, 70, "Scarico la nuova versione da GitHub…"], [70, 95, "Riavvio del server…"]];
+  let step = 0, pct = 0, down = false;
+  $("#updOverlay").hidden = false;
+  const paint = () => {
+    const [a, b, txt] = STEPS[step];
+    pct = Math.max(pct, a); pct += (b - pct) * 0.08;
+    $("#updBar").style.width = pct + "%";
+    $("#updStep").textContent = down ? "Riavvio del server… (il NAS torna tra pochi secondi)" : txt;
+  };
+  const tick = setInterval(paint, 500); paint();
+  const end = (msg, bad) => { clearInterval(tick); $("#updOverlay").hidden = true; toast(msg, bad); go.disabled = false; $("#updTop").disabled = false; };
+  for (let i = 0; i < 120; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    let s; try { s = await api("/api/update"); down = false; } catch { down = true; step = 3; continue; }   // durante il riavvio il NAS non risponde
+    if (s.failed) { end("Aggiornamento non riuscito: " + s.failed, true); return paintUpdate(s); }
+    if (s.running && s.step != null) step = Math.max(step, s.step);
+    if (!s.running && s.installed.sha !== before) {
+      clearInterval(tick); $("#updBar").style.width = "100%"; $("#updStep").textContent = `Fatto: versione ${s.version || ""}. Ricarico l'app…`;
+      setTimeout(() => location.reload(), 1200); return;
+    }
   }
-  toast("Il NAS non ha ancora finito: riapri l'app tra poco", true);
+  end("Il NAS non ha ancora finito: riapri l'app tra poco", true);
 }
 async function notifyUpdate() {
   try {
@@ -449,6 +463,9 @@ function init() {
   $("#updCheck").onclick = () => loadUpdate(true);
   $("#updGo").onclick = runUpdate;
   $("#updTop").onclick = runUpdate;
+  /* tastiera aperta: tolgo lo spazio per la barra home sotto la casella */
+  $("#input").addEventListener("focus", () => document.body.classList.add("kb"));
+  $("#input").addEventListener("blur", () => document.body.classList.remove("kb"));
   /* trascinando la chat verso il basso si abbassa la tastiera (come in Messaggi) */
   let y0 = null;
   const down = e => { y0 = e.touches.length === 1 ? e.touches[0].clientY : null; };
