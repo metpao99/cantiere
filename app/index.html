@@ -154,6 +154,15 @@ body.kb .composer{padding-bottom:8px}
 .bar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden}
 .bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .6s ease}
 #updOverlay p{margin:10px 0 0;font-size:.88rem;color:var(--muted)}
+/* ---- impostazioni della conversazione / del membro ---- */
+.status.warn{background:var(--warn-bg)}
+.dirlist{display:flex;flex-direction:column;gap:4px;margin:6px 0}
+.dirlist .d{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:4px 4px 4px 10px;font:.8rem var(--mono);overflow-wrap:anywhere}
+.dirlist .d span{flex:1}
+.dirlist .d .iconbtn{width:32px;height:32px}
+.dlg footer{flex-wrap:wrap}
+.chip .warn{color:var(--warn);font-weight:700}
+.note .btn{margin-top:6px;padding:6px 10px;font-size:.85rem}
 /* ---- temi ---- */
 .themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}
 .theme{display:flex;flex-direction:column;align-items:center;gap:6px;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:8px 6px;font-size:.82rem;font-weight:600}
@@ -331,6 +340,28 @@ textarea.notes{min-height:180px;font:.82rem/1.45 var(--mono)}
     <p class="muted small" style="margin:0">Ogni membro è una sessione di Claude Code nella sua cartella. Si scrivono con un comando del Cantiere; dopo 8 scambi automatici di fila si fermano e aspettano te.</p>
   </div>
   <footer><button class="btn ghost" value="cancel">Annulla</button><button class="btn" value="ok">Crea team</button></footer>
+</form></dialog>
+
+<dialog id="convDlg"><form method="dialog" class="dlg">
+  <header><h2 id="cdHead">Conversazione</h2><button class="iconbtn" value="cancel" aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+  <div class="body">
+    <div class="status warn" id="cdDenied" hidden></div>
+    <label class="f" id="cdTitleBox">Nome<input id="cdTitle" autocomplete="off"></label>
+    <label class="f">Cosa può fare Claude<select id="cdMode"><option value="plan">Solo piano – legge e propone</option><option value="acceptEdits">Modifica file – niente programmi né test</option><option value="bypassPermissions">Autonomo – file e comandi senza chiedere</option></select></label>
+    <div class="inline"><select id="cdModel" aria-label="Modello"><option value="">Modello predefinito</option><option value="opus">Opus</option><option value="sonnet">Sonnet</option><option value="haiku">Haiku</option></select>
+      <select id="cdEffort" aria-label="Effort"><option value="">Effort predefinito</option><option value="low">Effort basso</option><option value="medium">Effort medio</option><option value="high">Effort alto</option><option value="xhigh">Effort molto alto</option><option value="max">Effort massimo</option></select></div>
+    <div>
+      <div class="f" style="font-size:.85rem;font-weight:600">Cartelle in più <span class="muted" style="font-weight:400">(oltre a <code id="cdOwn"></code>: Claude può leggerle e modificarle)</span></div>
+      <div id="cdDirs" class="dirlist"></div>
+      <div><button type="button" class="btn ghost" id="cdAddDir">+ Aggiungi cartella</button></div>
+    </div>
+    <div id="cdPick" hidden>
+      <div class="crumb" id="cCrumb"></div>
+      <div class="dirs" id="cDirs"></div>
+      <div class="inline" style="margin-top:6px"><button type="button" class="btn ghost" id="cdPickCancel">Annulla</button><button type="button" class="btn" id="cdPickOk">Aggiungi questa</button></div>
+    </div>
+  </div>
+  <footer><button type="button" class="btn danger" id="cdDelete">Elimina</button><span style="flex:1"></span><button type="button" class="btn ghost" id="cdOpen">Apri chat</button><button type="button" class="btn ghost" id="cdSave">Salva</button><button type="button" class="btn" id="cdRetry">Salva e fai riprovare</button></footer>
 </form></dialog>
 
 <dialog id="teamDlg"><form method="dialog" class="dlg">

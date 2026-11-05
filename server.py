@@ -21,7 +21,7 @@ API (tutte richiedono il login, tranne /api/state e /api/login)
   GET    /api/convs                      elenco conversazioni
   POST   /api/convs                      {folder, model, mode, effort} nuova conversazione
   GET    /api/convs/<id>                 conversazione + messaggi + stato
-  PATCH  /api/convs/<id>                 {title?, model?, mode?, effort?}
+  PATCH  /api/convs/<id>                 {title?, model?, mode?, effort?, dirs?:[cartelle in più sotto --root]}
   DELETE /api/convs/<id>                 elimina la conversazione (i file restano)
   POST   /api/convs/<id>/send            {text, files:[{name, data(base64)}]}
   GET    /api/update                     versione installata e ultima su GitHub (controllo ogni 10 minuti)
@@ -48,7 +48,7 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-APP_VERSION = "1.2"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
+APP_VERSION = "1.3"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
 BASE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE, "app")
 DB_PATH = os.path.join(BASE, "cantiere.db")
@@ -103,9 +103,9 @@ def db():
             CREATE INDEX IF NOT EXISTS msgs_conv ON msgs(conv_id, id);
         """)
         cols = [r[1] for r in _conn.execute("PRAGMA table_info(convs)")]
-        for col in ("effort", "team_id", "role"):
+        for col, default in (("effort", "''"), ("team_id", "''"), ("role", "''"), ("dirs", "'[]'")):
             if col not in cols:
-                _conn.execute(f"ALTER TABLE convs ADD COLUMN {col} TEXT NOT NULL DEFAULT ''")
+                _conn.execute(f"ALTER TABLE convs ADD COLUMN {col} TEXT NOT NULL DEFAULT {default}")
         _conn.executescript("""
             CREATE TABLE IF NOT EXISTS teams (
                 id TEXT PRIMARY KEY, title TEXT NOT NULL, folder TEXT NOT NULL DEFAULT '',
@@ -293,6 +293,8 @@ class Run:
              "--permission-mode", self.conv["mode"], "--append-system-prompt", notes() + team_prompt(self.conv)]
         if self.conv.get("team_id"):
             c += ["--allowedTools", f"Bash(python3 {TEAM_PY}:*)"]
+        for d in extra_dirs(self.conv):
+            c += ["--add-dir", d]
         if self.conv["model"]:
             c += ["--model", self.conv["model"]]
         if self.conv.get("effort") and self.conv["model"] != "haiku":   # Haiku non ha i livelli di effort
@@ -427,6 +429,33 @@ class Run:
                 pass
 
 
+def conv_dirs(conv):
+    try:
+        v = json.loads(conv.get("dirs") or "[]")
+        return [str(x) for x in v] if isinstance(v, list) else []
+    except ValueError:
+        return []
+
+
+def extra_dirs(conv):
+    """Cartelle che Claude può usare oltre alla sua: quelle scelte dall'utente e, per i membri di un team,
+    la cartella del team (così vedono il lavoro degli altri)."""
+    rels = conv_dirs(conv)
+    if conv.get("team_id"):
+        t = q("SELECT folder FROM teams WHERE id = ?", (conv["team_id"],), one=True)
+        if t:
+            rels.append(t["folder"])
+    out, own = [], safe_dir(conv["folder"])
+    for r in rels:
+        try:
+            full = safe_dir(r)
+        except ValueError:
+            continue
+        if os.path.isdir(full) and full != own and full not in out:
+            out.append(full)
+    return out
+
+
 # ---------- team: più conversazioni che si scrivono ----------
 def team_members(team_id):
     return q("SELECT * FROM convs WHERE team_id = ? ORDER BY created, rowid", (team_id,))
@@ -459,6 +488,11 @@ Regole:
 - Quando ricevi un compito da un membro, alla fine rispondigli con lo stesso comando.
 - Quello che scrivi normalmente in chat lo legge l'utente nella vista Team: tienilo breve.
 - Dopo {t['max_hops']} scambi automatici consecutivi il comando si blocca finché l'utente non riscrive.
+- Permessi: qui NON esistono richieste di approvazione da accettare una per una. Se un comando o una cartella
+  ti vengono bloccati, non riprovare in altri modi: scrivi in chat (breve) cosa ti serve, cioè il modo
+  («Autonomo» per lanciare programmi/test) oppure la cartella da aggiungere (percorso esatto). L'utente lo
+  imposta toccando il tuo nome nella vista Team (modo, modello, effort, «cartelle in più») e ti fa riprovare.
+  Se un altro membro ti dice di essere bloccato, riferisci all'utente la stessa cosa.
 """
 
 
@@ -482,8 +516,9 @@ def team_out(t, full=False):
                 item.update(kind="msg", **{"from": meta.get("from") or "tu"})
             else:
                 item.update(kind="work", tools=sum(1 for b in blocks if b.get("type") == "tool"),
-                            error=meta.get("error"), stopped=meta.get("stopped"), seconds=meta.get("seconds"))
-                if not text and not item["tools"] and not item["error"]:
+                            error=meta.get("error"), stopped=meta.get("stopped"), seconds=meta.get("seconds"),
+                            denied=meta.get("denied"))
+                if not text and not item["tools"] and not item["error"] and not item["denied"]:
                     continue
             tl.append(item)
         t["timeline"] = tl
@@ -567,6 +602,7 @@ def create_team(body):
 def conv_out(c):
     c = dict(c)
     c["running"] = c["id"] in RUNS
+    c["dirs"] = conv_dirs(c)
     c.pop("claude_sid", None)
     return c
 
@@ -1069,6 +1105,18 @@ class Handler(BaseHTTPRequestHandler):
             q("UPDATE convs SET model = ? WHERE id = ?", (body["model"], c["id"]))
         if "effort" in body and body["effort"] in EFFORTS:
             q("UPDATE convs SET effort = ? WHERE id = ?", (body["effort"], c["id"]))
+        if isinstance(body.get("dirs"), list):
+            rels = []
+            for d in body["dirs"][:10]:
+                try:
+                    full = safe_dir(str(d))
+                except ValueError as e:
+                    return self.send_json(400, {"error": str(e)})
+                if not os.path.isdir(full):
+                    return self.send_json(400, {"error": f"Cartella inesistente: ~/{d}"})
+                if rel_of(full) not in rels:
+                    rels.append(rel_of(full))
+            q("UPDATE convs SET dirs = ? WHERE id = ?", (json.dumps(rels), c["id"]))
         return self.send_json(200, {"conv": conv_out(q("SELECT * FROM convs WHERE id = ?", (c["id"],), one=True))})
 
     def do_DELETE(self):

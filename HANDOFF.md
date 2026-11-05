@@ -40,3 +40,8 @@ Dati/segreti mai toccati dagli aggiornamenti: `cantiere.db`, `auth.json`, `claud
   si azzera quando scrive l'utente (vista team o chat del membro).
 - La vista team è una cronologia unica (messaggi tra membri + testo finale di ogni turno), aggiornata ogni 2,5 s
   mentre qualcuno lavora.
+- Permessi dei membri (v1.3): toccando un membro si apre la sua scheda (modo, modello, effort, **cartelle in più**
+  → `--add-dir`, colonna `convs.dirs`). I membri ricevono sempre anche la cartella del team. I blocchi
+  (`meta.denied`) compaiono nella cronologia del team con il pulsante per aprire la scheda; "Salva e fai riprovare"
+  manda al membro un messaggio con i nuovi permessi. Le approvazioni una per una non esistono (`claude -p`).
+  La stessa scheda si apre dai "…" delle chat singole (rinomina, cartelle in più, elimina).

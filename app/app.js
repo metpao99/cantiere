@@ -335,24 +335,19 @@ async function patchConv(body) {
 }
 async function more() {
   if (S.team) return openTeamOpts();
-  const a = prompt("Rinomina la conversazione (lascia vuoto per eliminarla):", S.cur.title);
-  if (a === null) return;
-  if (a.trim()) return patchConv({ title: a.trim() });
-  if (!confirm("Eliminare questa conversazione? I file nella cartella restano.")) return;
-  await api(`/api/convs/${S.cur.id}`, { method: "DELETE" });
-  go(""); loadConvs();
+  if (S.cur) openConvDlg(S.cur);
 }
 
 /* ---------- nuova conversazione: scelta della cartella ---------- */
 async function browse(path, t) {
-  const P = t ? "#t" : "#", go = p => browse(p, t);
+  const k = t === true ? "t" : (t || ""), nav = p => browse(p, k);
   try {
     const d = await api("/api/folders?path=" + encodeURIComponent(path));
-    if (t) S.tbrowse = d.path; else S.browse = d.path;
-    $(t ? "#tCrumb" : "#crumb").textContent = d.root + (d.path ? "/" + d.path : "") + "/";
-    const box = $(t ? "#tDirs" : "#dirs"); box.innerHTML = "";
-    if (d.parent !== null) { const up = el("button", "", ICON.up + "<span>Cartella superiore</span>"); up.type = "button"; up.onclick = () => go(d.parent); box.append(up); }
-    d.dirs.forEach(n => { const b = el("button", "", ICON.folder + `<span>${esc(n)}</span>`); b.type = "button"; b.onclick = () => go((d.path ? d.path + "/" : "") + n); box.append(b); });
+    S[k + "browse"] = d.path;
+    $(k ? `#${k}Crumb` : "#crumb").textContent = d.root + (d.path ? "/" + d.path : "") + "/";
+    const box = $(k ? `#${k}Dirs` : "#dirs"); box.innerHTML = "";
+    if (d.parent !== null) { const up = el("button", "", ICON.up + "<span>Cartella superiore</span>"); up.type = "button"; up.onclick = () => nav(d.parent); box.append(up); }
+    d.dirs.forEach(n => { const b = el("button", "", ICON.folder + `<span>${esc(n)}</span>`); b.type = "button"; b.onclick = () => nav((d.path ? d.path + "/" : "") + n); box.append(b); });
     if (!d.dirs.length) { const p = el("p", "muted small", "Nessuna sottocartella."); p.style.padding = "4px 12px"; box.append(p); }
   } catch (e) { toast(e.message); }
 }
@@ -416,10 +411,11 @@ function renderTeam() {
   const t = S.team, box = $("#msgs"); box.innerHTML = "";
   const color = {}; t.members.forEach((m, i) => color[m.role] = "c" + (i % 6));
   const chips = el("div", "members");
+  const lastWork = {}; t.timeline.forEach(it => { if (it.kind === "work") lastWork[it.role] = it; });
   t.members.forEach(m => {
     const c = el("button", "chip " + color[m.role]); c.type = "button";
-    c.innerHTML = `${m.running ? '<span class="spin"></span>' : ""}<b>${esc(m.role)}</b><span class="q">${esc(MODE_LBL[m.mode] || "")}${m.model ? " · " + esc(MODEL_LBL[m.model]) : ""}${m.queued ? ` · ${m.queued} in coda` : ""}</span>`;
-    c.title = "Apri la chat di " + m.role; c.onclick = () => go(m.id);
+    c.innerHTML = `${m.running ? '<span class="spin"></span>' : ""}<b>${esc(m.role)}</b>${!m.running && lastWork[m.role] && lastWork[m.role].denied ? '<span class="warn" title="Bloccato da un permesso">!</span>' : ""}<span class="q">${esc(MODE_LBL[m.mode] || "")}${m.model ? " · " + esc(MODEL_LBL[m.model]) : ""}${m.queued ? ` · ${m.queued} in coda` : ""}</span>`;
+    c.title = "Impostazioni di " + m.role; c.onclick = () => openConvDlg(m);
     chips.append(c);
   });
   box.append(chips);
@@ -436,6 +432,12 @@ function renderTeam() {
       n.innerHTML = `<div class="hd"><span class="role">${esc(it.role)}</span></div>` + (it.text ? `<div class="md">${md(it.text)}</div>` : "");
       if (it.error) n.append(el("div", "note bad", esc(it.error)));
       if (it.stopped) n.append(el("div", "note warn", "Fermato."));
+      if (it.denied && it.denied.length) {
+        const w = el("div", "note warn", `Bloccato: voleva usare <b>${esc(it.denied.map(x => TOOL_NAMES[x] || x).join(", "))}</b> ma il modo o le cartelle di «${esc(it.role)}» non lo permettono.<br>`);
+        const b = el("button", "btn", `Permessi di ${esc(it.role)}`); b.type = "button";
+        b.onclick = () => { const m = t.members.find(x => x.role === it.role); if (m) openConvDlg(m, it.denied); };
+        w.append(b); n.append(w);
+      }
       const bits = [];
       if (it.tools) bits.push(`${it.tools} strumenti`);
       if (it.seconds != null) bits.push(it.seconds >= 60 ? `${Math.floor(it.seconds / 60)} min` : `${it.seconds} s`);
@@ -501,6 +503,65 @@ function initTeam() {
   $("#tdDelete").onclick = async () => {
     if (!confirm(`Eliminare il team «${S.team.title}» e le chat dei suoi membri? I file nelle cartelle restano.`)) return;
     try { await api(`/api/teams/${S.team.id}`, { method: "DELETE" }); $("#teamDlg").close(); S.team = null; go(""); loadTeams(); } catch (e) { toast(e.message); }
+  };
+}
+
+
+/* ---------- impostazioni di una conversazione o di un membro del team ---------- */
+const CD = { c: null, dirs: [] };
+function openConvDlg(c, denied) {
+  CD.c = c; CD.dirs = [...(c.dirs || [])];
+  const member = !!c.team_id;
+  $("#cdHead").textContent = member ? `Membro «${c.role}»` : "Conversazione";
+  $("#cdTitleBox").hidden = member; $("#cdTitle").value = c.title;
+  $("#cdMode").value = c.mode; $("#cdModel").value = c.model; $("#cdEffort").value = c.effort || "";
+  $("#cdEffort").disabled = c.model === "haiku";
+  $("#cdOwn").textContent = "~/" + c.folder;
+  $("#cdDenied").hidden = !denied;
+  if (denied) $("#cdDenied").innerHTML = `Era bloccato su <b>${esc(denied.map(x => TOOL_NAMES[x] || x).join(", "))}</b>. Per programmi e test scegli <b>Autonomo</b>; per file fuori dalla sua cartella aggiungi la cartella qui sotto (il percorso di solito è scritto nel suo messaggio).`;
+  $("#cdRetry").hidden = !member; $("#cdOpen").hidden = !member || (S.cur && S.cur.id === c.id); $("#cdDelete").hidden = member;
+  $("#cdPick").hidden = true; renderCdDirs();
+  $("#convDlg").showModal();
+}
+function renderCdDirs() {
+  const box = $("#cdDirs"); box.innerHTML = "";
+  if (!CD.dirs.length) box.append(el("div", "muted small", "Nessuna."));
+  CD.dirs.forEach((d, i) => {
+    const r = el("div", "d", `<span>~/${esc(d)}</span><button type="button" class="iconbtn" aria-label="Togli">${ICON.err}</button>`);
+    r.querySelector("button").onclick = () => { CD.dirs.splice(i, 1); renderCdDirs(); };
+    box.append(r);
+  });
+}
+async function saveConvDlg(retry) {
+  const c = CD.c, body = { mode: $("#cdMode").value, model: $("#cdModel").value, effort: $("#cdEffort").value, dirs: CD.dirs };
+  if (!c.team_id && $("#cdTitle").value.trim()) body.title = $("#cdTitle").value.trim();
+  try {
+    const d = await api(`/api/convs/${c.id}`, { method: "PATCH", body });
+    if (retry) {
+      const what = [`modo «${$("#cdMode").selectedOptions[0].text.split(" – ")[0]}»`].concat(CD.dirs.length ? [`cartelle in più: ${CD.dirs.map(x => "~/" + x).join(", ")}`] : []);
+      await api(`/api/teams/${c.team_id}/send`, { method: "POST", body: { to: c.role, text: `Ho aggiornato i tuoi permessi (${what.join("; ")}). Riprova quello che era stato bloccato e continua il lavoro.` } });
+    }
+    $("#convDlg").close(); toast(retry ? `Salvato: «${c.role}» riprova` : "Salvato");
+    if (S.team) loadTeam(S.team.id);
+    else if (S.cur && S.cur.id === c.id) { S.cur = d.conv; $("#convTitle").textContent = d.conv.title; $("#modeSel").value = d.conv.mode; $("#modelSel").value = d.conv.model; $("#effortSel").value = d.conv.effort || ""; paintMode(); paintEffort(); loadConvs(); }
+  } catch (e) { toast(e.message); }
+}
+function initConvDlg() {
+  $("#cdModel").onchange = () => $("#cdEffort").disabled = $("#cdModel").value === "haiku";
+  $("#cdAddDir").onclick = () => { $("#cdPick").hidden = false; browse(S.cbrowse || CD.c.folder || "", "c"); };
+  $("#cdPickCancel").onclick = () => $("#cdPick").hidden = true;
+  $("#cdPickOk").onclick = () => {
+    const p = S.cbrowse || "";
+    if (p === CD.c.folder) return toast("È già la sua cartella");
+    if (!CD.dirs.includes(p)) CD.dirs.push(p);
+    $("#cdPick").hidden = true; renderCdDirs();
+  };
+  $("#cdSave").onclick = () => saveConvDlg(false);
+  $("#cdRetry").onclick = () => saveConvDlg(true);
+  $("#cdOpen").onclick = () => { const id = CD.c.id; $("#convDlg").close(); go(id); };
+  $("#cdDelete").onclick = async () => {
+    if (!confirm("Eliminare questa conversazione? I file nella cartella restano.")) return;
+    try { await api(`/api/convs/${CD.c.id}`, { method: "DELETE" }); $("#convDlg").close(); go(""); loadConvs(); } catch (e) { toast(e.message); }
   };
 }
 
@@ -687,7 +748,7 @@ function init() {
   $("#settingsBtn").onclick = openSettings;
   initTeam(); renderTabs();
   $("#schemeSel").onchange = () => { localStorage.setItem("cantiere-scheme", $("#schemeSel").value); applyTheme(); renderThemes(); };
-  initEdgeSwipe();
+  initEdgeSwipe(); initConvDlg();
   $("#tokenSave").onclick = saveToken;
   $("#testBtn").onclick = testClaude;
   $("#notesSave").onclick = saveNotes;
