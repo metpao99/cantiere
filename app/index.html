@@ -26,7 +26,7 @@
   --bg:#0f161d; --card:#17212b; --fg:#e4ebf1; --muted:#9aabbb; --line:#2a3744;
   --accent:#7db9e8; --accent-fg:#0b1a26; --soft:#18293a; --warn:#e2b04a; --warn-bg:#3a2f12; --bad:#ec8a72; --bad-bg:#3d1d15;
   --code-bg:#0b1218; color-scheme:dark}}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation} /* niente zoom col doppio tocco */
 [hidden]{display:none!important}
 html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:16px;line-height:1.5;-webkit-text-size-adjust:100%;overflow:hidden}
@@ -230,6 +230,14 @@ textarea.notes{min-height:180px;font:.82rem/1.45 var(--mono)}
             <option value="opus">Opus</option>
             <option value="sonnet">Sonnet</option>
             <option value="haiku">Haiku</option>
+          </select>
+          <select id="effortSel" aria-label="Effort">
+            <option value="">Effort predefinito</option>
+            <option value="low">Effort basso</option>
+            <option value="medium">Effort medio</option>
+            <option value="high">Effort alto</option>
+            <option value="xhigh">Effort molto alto</option>
+            <option value="max">Effort massimo</option>
           </select>
         </div>
         <div id="pending"></div>

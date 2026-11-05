@@ -19,9 +19,9 @@ API (tutte richiedono il login, tranne /api/state e /api/login)
   GET    /api/folders?path=rel           sottocartelle (non nascoste) sotto --root
   POST   /api/folders                    {path, name} crea una cartella
   GET    /api/convs                      elenco conversazioni
-  POST   /api/convs                      {folder, model, mode} nuova conversazione
+  POST   /api/convs                      {folder, model, mode, effort} nuova conversazione
   GET    /api/convs/<id>                 conversazione + messaggi + stato
-  PATCH  /api/convs/<id>                 {title?, model?, mode?}
+  PATCH  /api/convs/<id>                 {title?, model?, mode?, effort?}
   DELETE /api/convs/<id>                 elimina la conversazione (i file restano)
   POST   /api/convs/<id>/send            {text, files:[{name, data(base64)}]}
   GET    /api/update                     versione installata e ultima su GitHub (controllo ogni 10 minuti)
@@ -38,7 +38,7 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-APP_VERSION = "0.2"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
+APP_VERSION = "0.3"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
 BASE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE, "app")
 DB_PATH = os.path.join(BASE, "cantiere.db")
@@ -50,6 +50,7 @@ SESSION_AGE = 90 * 24 * 3600
 ID_RE = re.compile(r"^[a-f0-9]{12}$")
 MODES = ("plan", "acceptEdits", "bypassPermissions")
 MODELS = ("", "opus", "sonnet", "haiku")
+EFFORTS = ("", "low", "medium", "high", "xhigh", "max")   # "" = predefinito di Claude Code
 MAX_RUNS = int(os.environ.get("CANTIERE_MAX_RUNS", "2"))   # 4 GB di RAM: meglio non esagerare
 RUN_TIMEOUT = 45 * 60
 ROOT = os.path.expanduser("~")
@@ -87,6 +88,9 @@ def db():
                 blocks TEXT NOT NULL, meta TEXT NOT NULL DEFAULT '{}', created INTEGER NOT NULL);
             CREATE INDEX IF NOT EXISTS msgs_conv ON msgs(conv_id, id);
         """)
+        if "effort" not in [r[1] for r in _conn.execute("PRAGMA table_info(convs)")]:
+            _conn.execute("ALTER TABLE convs ADD COLUMN effort TEXT NOT NULL DEFAULT ''")
+            _conn.commit()
     return _conn
 
 
@@ -263,6 +267,8 @@ class Run:
              "--permission-mode", self.conv["mode"], "--append-system-prompt", notes()]
         if self.conv["model"]:
             c += ["--model", self.conv["model"]]
+        if self.conv.get("effort") and self.conv["model"] != "haiku":   # Haiku non ha i livelli di effort
+            c += ["--effort", self.conv["effort"]]
         if self.sid:
             c += ["--resume", self.sid]
         return c
@@ -713,9 +719,10 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send_json(400, {"error": "Cartella inesistente"})
                 mode = body.get("mode") if body.get("mode") in MODES else "acceptEdits"
                 model = body.get("model") if body.get("model") in MODELS else ""
+                effort = body.get("effort") if body.get("effort") in EFFORTS else ""
                 cid, now = secrets.token_hex(6), int(time.time())
-                q("INSERT INTO convs (id, title, folder, model, mode, created, updated) VALUES (?,?,?,?,?,?,?)",
-                  (cid, "Nuova conversazione", rel_of(full), model, mode, now, now))
+                q("INSERT INTO convs (id, title, folder, model, mode, effort, created, updated) VALUES (?,?,?,?,?,?,?,?)",
+                  (cid, "Nuova conversazione", rel_of(full), model, mode, effort, now, now))
                 return self.send_json(200, {"conv": conv_out(q("SELECT * FROM convs WHERE id = ?", (cid,), one=True))})
             m = re.match(r"^/api/convs/([^/]+)/(send|stop)$", path)
             if m:
@@ -794,6 +801,8 @@ class Handler(BaseHTTPRequestHandler):
             q("UPDATE convs SET mode = ? WHERE id = ?", (body["mode"], c["id"]))
         if "model" in body and body["model"] in MODELS:
             q("UPDATE convs SET model = ? WHERE id = ?", (body["model"], c["id"]))
+        if "effort" in body and body["effort"] in EFFORTS:
+            q("UPDATE convs SET effort = ? WHERE id = ?", (body["effort"], c["id"]))
         return self.send_json(200, {"conv": conv_out(q("SELECT * FROM convs WHERE id = ?", (c["id"],), one=True))})
 
     def do_DELETE(self):

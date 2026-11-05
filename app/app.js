@@ -207,7 +207,7 @@ async function loadConv(id, keepScroll) {
     S.cur = d.conv; S.msgs = d.msgs;
     $("#convTitle").textContent = d.conv.title; $("#convFolder").textContent = "~/" + d.conv.folder;
     $("#moreBtn").hidden = false; $("#composer").hidden = false;
-    $("#modeSel").value = d.conv.mode; $("#modelSel").value = d.conv.model; paintMode();
+    $("#modeSel").value = d.conv.mode; $("#modelSel").value = d.conv.model; $("#effortSel").value = d.conv.effort || ""; paintEffort(); paintMode();
     if (d.conv.running) { if (!S.es) openStream(id); else S.live = S.live || { blocks: [] }; }
     else { closeStream(); S.live = null; setBusy(false); }
     renderMsgs(); renderList();
@@ -319,10 +319,13 @@ async function createConv(e) {
   e.preventDefault();
   const mode = new FormData($("#newForm")).get("mode");
   try {
-    const d = await api("/api/convs", { method: "POST", body: { folder: S.browse, mode, model: localStorage.getItem("cantiere-model") || "" } });
+    const d = await api("/api/convs", { method: "POST", body: { folder: S.browse, mode, model: localStorage.getItem("cantiere-model") || "", effort: localStorage.getItem("cantiere-effort") || "" } });
     $("#newDlg").close(); await loadConvs(); location.hash = d.conv.id; setTimeout(() => $("#input").focus(), 50);
   } catch (err) { toast(err.message); }
 }
+
+/* Haiku non ha i livelli di effort: il menu si disattiva */
+function paintEffort() { $("#effortSel").disabled = $("#modelSel").value === "haiku"; }
 
 /* ---------- impostazioni ---------- */
 async function openSettings() {
@@ -431,7 +434,8 @@ function init() {
   $("#fileInput").onchange = e => { addFiles([...e.target.files]); e.target.value = ""; };
   $("#input").addEventListener("paste", e => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { e.preventDefault(); addFiles(fs); } });
   $("#modeSel").onchange = () => { paintMode(); patchConv({ mode: $("#modeSel").value }); };
-  $("#modelSel").onchange = () => { localStorage.setItem("cantiere-model", $("#modelSel").value); patchConv({ model: $("#modelSel").value }); };
+  $("#modelSel").onchange = () => { localStorage.setItem("cantiere-model", $("#modelSel").value); paintEffort(); patchConv({ model: $("#modelSel").value }); };
+  $("#effortSel").onchange = () => { localStorage.setItem("cantiere-effort", $("#effortSel").value); patchConv({ effort: $("#effortSel").value }); };
   $("#moreBtn").onclick = more;
   $("#convTitle").onclick = () => S.cur && more();
   $("#newBtn").onclick = openNew;
