@@ -154,6 +154,28 @@ body.kb .composer{padding-bottom:8px}
 .bar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden}
 .bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .6s ease}
 #updOverlay p{margin:10px 0 0;font-size:.88rem;color:var(--muted)}
+/* ---- team ---- */
+.tabs{display:flex;gap:4px;margin:0 12px 8px;padding:3px;background:var(--soft);border-radius:10px}
+.tabs button{flex:1;border:0;background:none;border-radius:8px;padding:6px;font-weight:600;font-size:.9rem;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--card);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.updbtn.ghost{background:var(--soft);color:var(--fg)}
+.c0{--rc:#1f5f8b}.c1{--rc:#9a4f1a}.c2{--rc:#2f7a3d}.c3{--rc:#7a3d8f}.c4{--rc:#a3361f}.c5{--rc:#5d6b12}
+@media (prefers-color-scheme:dark){.c0{--rc:#7db9e8}.c1{--rc:#eea36b}.c2{--rc:#7fd08f}.c3{--rc:#cf9be0}.c4{--rc:#ec8a72}.c5{--rc:#c8d46a}}
+.members{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-left:4px solid var(--rc);border-radius:8px;background:var(--card);padding:5px 10px;font-size:.85rem}
+.chip b{color:var(--rc)}
+.chip .q{font-size:.72rem;color:var(--muted)}
+.role{font-weight:700;color:var(--rc)}
+.tl-msg{border-left:3px solid var(--rc);padding:6px 0 6px 12px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.93rem}
+.tl-msg .hd{font-size:.78rem;color:var(--muted);margin-bottom:2px;white-space:normal}
+.tl-msg.me{align-self:flex-end;max-width:85%;border:0;background:var(--soft);border-radius:16px 16px 4px 16px;padding:10px 14px}
+.tl-work{border-left:3px solid var(--rc);padding-left:12px;min-width:0;overflow-wrap:anywhere}
+.tl-work .hd{font-size:.8rem;margin-bottom:2px}
+.tl-work .ft{font:.72rem var(--mono);color:var(--muted);margin-top:4px}
+.tl-work .ft a{color:var(--accent);cursor:pointer}
+.mrow{display:grid;grid-template-columns:1fr 1fr auto;gap:6px;border:1px solid var(--line);border-radius:8px;padding:8px}
+.mrow select{font-size:.85rem;padding:7px 8px}
+.mrow .x{grid-row:span 2;align-self:center}
 /* ---- finestre ---- */
 dialog{border:0;border-radius:14px;padding:0;background:var(--card);color:var(--fg);width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 40px);box-shadow:0 10px 40px rgba(0,0,0,.25)}
 dialog::backdrop{background:rgba(0,0,0,.35)}
@@ -211,7 +233,8 @@ textarea.notes{min-height:180px;font:.82rem/1.45 var(--mono)}
       <button class="iconbtn" id="closeSide" aria-label="Chiudi elenco" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
-    <button class="btn" id="newBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nuova conversazione</button>
+    <div class="tabs" role="tablist"><button type="button" data-tab="chat" role="tab">Chat</button><button type="button" data-tab="team" role="tab">Team</button></div>
+    <button class="btn" id="newBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span id="newLbl">Nuova conversazione</span></button>
     <nav id="convList" aria-label="Conversazioni"></nav>
     <div class="side-foot">
       <button id="settingsBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Impostazioni</button>
@@ -224,6 +247,7 @@ textarea.notes{min-height:180px;font:.82rem/1.45 var(--mono)}
       <button class="iconbtn" id="menuBtn" aria-label="Conversazioni">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
       <div class="ttl"><b id="convTitle">Cantiere</b><small id="convFolder"></small></div>
+      <button class="updbtn ghost" id="backTeam" hidden>← Team</button>
       <button class="updbtn" id="updTop" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Aggiorna</button>
       <button class="iconbtn" id="moreBtn" aria-label="Opzioni conversazione" hidden>
         <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
@@ -232,6 +256,7 @@ textarea.notes{min-height:180px;font:.82rem/1.45 var(--mono)}
     <form class="composer" id="composer" hidden>
       <div class="inner">
         <div class="opts">
+          <select id="toSel" aria-label="A chi scrivi" hidden></select>
           <select id="modeSel" aria-label="Cosa può fare Claude">
             <option value="plan">Solo piano</option>
             <option value="acceptEdits">Modifica file</option>
@@ -283,6 +308,35 @@ textarea.notes{min-height:180px;font:.82rem/1.45 var(--mono)}
     </div>
   </div>
   <footer><button class="btn ghost" value="cancel">Annulla</button><button class="btn" id="createBtn" value="ok">Inizia qui</button></footer>
+</form></dialog>
+
+<dialog id="teamNewDlg"><form method="dialog" class="dlg" id="teamForm">
+  <header><h2>Nuovo team</h2><button class="iconbtn" value="cancel" aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+  <div class="body">
+    <label class="f">Nome del team<input id="tTitle" placeholder="es. Sviluppo Dispensa" autocomplete="off"></label>
+    <div>
+      <div class="f" style="font-size:.85rem;font-weight:600;margin-bottom:4px">Cartella del team <span class="muted" style="font-weight:400">(i membri lavorano qui o in sottocartelle)</span></div>
+      <div class="crumb" id="tCrumb"></div>
+    </div>
+    <div class="dirs" id="tDirs"></div>
+    <div class="f" style="font-size:.85rem;font-weight:600">Membri <span class="muted" style="font-weight:400">(il primo è il capo: riceve i tuoi messaggi di default)</span></div>
+    <div id="tMembers" style="display:flex;flex-direction:column;gap:6px"></div>
+    <div><button type="button" class="btn ghost" id="tAdd">+ Aggiungi membro</button></div>
+    <p class="muted small" style="margin:0">Ogni membro è una sessione di Claude Code nella sua cartella. Si scrivono con un comando del Cantiere; dopo 8 scambi automatici di fila si fermano e aspettano te.</p>
+  </div>
+  <footer><button class="btn ghost" value="cancel">Annulla</button><button class="btn" value="ok">Crea team</button></footer>
+</form></dialog>
+
+<dialog id="teamDlg"><form method="dialog" class="dlg">
+  <header><h2>Opzioni del team</h2><button class="iconbtn" value="cancel" aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+  <div class="body">
+    <label class="f">Nome<div class="inline"><input id="tdTitle" autocomplete="off"><button type="button" class="btn ghost" id="tdSave">Salva</button></div></label>
+    <label class="f">Scambi automatici di fila prima di fermarsi <span class="h">Si azzera ogni volta che scrivi tu.</span>
+      <div class="inline"><input id="tdHops" type="number" min="1" max="50" inputmode="numeric"><button type="button" class="btn ghost" id="tdHopsSave">Salva</button></div></label>
+    <div class="status" id="tdInfo"></div>
+    <div class="inline"><button type="button" class="btn ghost" id="tdStop">Ferma tutti e svuota la coda</button></div>
+  </div>
+  <footer><button type="button" class="btn danger" id="tdDelete">Elimina team</button><button class="btn" value="cancel">Chiudi</button></footer>
 </form></dialog>
 
 <dialog id="setDlg"><form method="dialog" class="dlg">

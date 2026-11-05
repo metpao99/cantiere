@@ -5,7 +5,8 @@ const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls)
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const touch = matchMedia("(pointer:coarse)").matches;
 
-const S = { convs: [], cur: null, msgs: [], live: null, es: null, files: [], browse: "" };
+const S = { convs: [], cur: null, msgs: [], live: null, es: null, files: [], browse: "", tbrowse: "",
+  tab: localStorage.getItem("cantiere-tab") || "chat", teams: [], team: null, poll: 0 };
 
 async function api(path, opts = {}) {
   const o = { method: opts.method || "GET", headers: {}, credentials: "same-origin" };
@@ -135,7 +136,9 @@ function toBottom() { const s = $("#scroller"); s.scrollTop = s.scrollHeight; }
 function renderMsgs() {
   const box = $("#msgs"); box.innerHTML = "";
   if (!S.cur) {
-    box.append(el("div", "empty", `<h2>Ciao!</h2><p>Apri una conversazione: scegli una cartella del NAS e Claude ci lavora dentro con te.</p><button class="btn" id="emptyNew">Nuova conversazione</button>`));
+    box.append(el("div", "empty", S.tab === "team"
+      ? `<h2>Team</h2><p>Più sessioni di Claude, ognuna nella sua cartella, che si passano il lavoro. Tu scrivi al capo e segui lo scambio.</p><button class="btn" id="emptyNew">Nuovo team</button>`
+      : `<h2>Ciao!</h2><p>Apri una conversazione: scegli una cartella del NAS e Claude ci lavora dentro con te.</p><button class="btn" id="emptyNew">Nuova conversazione</button>`));
     $("#emptyNew").onclick = openNew; return;
   }
   if (!S.msgs.length && !S.live) box.append(el("div", "empty", `<p>Claude lavora in <code>${esc(S.cur.folder || "~")}</code>. Chiedigli cosa vuoi costruire.</p>`));
@@ -188,7 +191,14 @@ function ago(t) {
   if (d.toDateString() === today.toDateString()) return d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
   return d.toLocaleDateString("it-IT", { day: "numeric", month: "short" });
 }
+function renderTabs() {
+  document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === S.tab ? "true" : "false"));
+  $("#newLbl").textContent = S.tab === "team" ? "Nuovo team" : "Nuova conversazione";
+}
+function setTab(t) { S.tab = t; localStorage.setItem("cantiere-tab", t); renderTabs(); renderList(); if (t === "team") loadTeams().catch(() => {}); if (!S.cur && !S.team) renderMsgs(); }
 function renderList() {
+  renderTabs();
+  if (S.tab === "team") return renderTeamList();
   const nav = $("#convList"); nav.innerHTML = "";
   if (!S.convs.length) { const p = el("p", "muted small", "Nessuna conversazione."); p.style.padding = "4px 10px"; nav.append(p); }
   for (const c of S.convs) {
@@ -199,13 +209,14 @@ function renderList() {
     nav.append(b);
   }
 }
-async function loadConvs() { S.convs = (await api("/api/convs")).convs; renderList(); }
+async function loadConvs() { S.convs = (await api("/api/convs")).convs; renderList(); if (S.tab === "team") loadTeams().catch(() => {}); }
 async function loadConv(id, keepScroll) {
   try {
     const d = await api(`/api/convs/${id}`);
     if (location.hash.slice(1) !== id) return;
-    S.cur = d.conv; S.msgs = d.msgs;
-    $("#convTitle").textContent = d.conv.title; $("#convFolder").textContent = "~/" + d.conv.folder;
+    S.cur = d.conv; S.msgs = d.msgs; S.team = null; stopPoll(); composerFor("chat");
+    $("#backTeam").hidden = !d.conv.team_id; $("#backTeam").dataset.team = d.conv.team_id || "";
+    $("#convTitle").textContent = d.conv.title; $("#convFolder").textContent = (d.conv.team_id ? "membro del team · " : "") + "~/" + d.conv.folder;
     $("#moreBtn").hidden = false; $("#composer").hidden = false;
     $("#modeSel").value = d.conv.mode; $("#modelSel").value = d.conv.model; $("#effortSel").value = d.conv.effort || ""; paintEffort(); paintMode();
     if (d.conv.running) { if (!S.es) openStream(id); else S.live = S.live || { blocks: [] }; }
@@ -215,7 +226,9 @@ async function loadConv(id, keepScroll) {
 }
 function route() {
   const id = location.hash.slice(1);
-  closeStream(); S.live = null; setBusy(false);
+  closeStream(); S.live = null; setBusy(false); stopPoll(); $("#backTeam").hidden = true;
+  if (id.startsWith("t-")) { S.cur = null; if (S.tab !== "team") setTab("team"); return loadTeam(id.slice(2)); }
+  S.team = null; composerFor("chat");
   if (!id) {
     S.cur = null; S.msgs = [];
     $("#convTitle").textContent = "Cantiere"; $("#convFolder").textContent = "";
@@ -227,6 +240,7 @@ function route() {
 /* ---------- invio ---------- */
 async function send(e) {
   e.preventDefault();
+  if (S.team) return teamSend();
   if (!S.cur) return;
   if (S.es || S.live) { try { await api(`/api/convs/${S.cur.id}/stop`, { method: "POST", body: {} }); } catch (err) { toast(err.message); } return; }
   const text = $("#input").value.trim();
@@ -288,6 +302,7 @@ async function patchConv(body) {
   catch (e) { toast(e.message); }
 }
 async function more() {
+  if (S.team) return openTeamOpts();
   const a = prompt("Rinomina la conversazione (lascia vuoto per eliminarla):", S.cur.title);
   if (a === null) return;
   if (a.trim()) return patchConv({ title: a.trim() });
@@ -297,18 +312,19 @@ async function more() {
 }
 
 /* ---------- nuova conversazione: scelta della cartella ---------- */
-async function browse(path) {
+async function browse(path, t) {
+  const P = t ? "#t" : "#", go = p => browse(p, t);
   try {
     const d = await api("/api/folders?path=" + encodeURIComponent(path));
-    S.browse = d.path;
-    $("#crumb").textContent = d.root + (d.path ? "/" + d.path : "") + "/";
-    const box = $("#dirs"); box.innerHTML = "";
-    if (d.parent !== null) { const up = el("button", "", ICON.up + "<span>Cartella superiore</span>"); up.type = "button"; up.onclick = () => browse(d.parent); box.append(up); }
-    d.dirs.forEach(n => { const b = el("button", "", ICON.folder + `<span>${esc(n)}</span>`); b.type = "button"; b.onclick = () => browse((d.path ? d.path + "/" : "") + n); box.append(b); });
+    if (t) S.tbrowse = d.path; else S.browse = d.path;
+    $(t ? "#tCrumb" : "#crumb").textContent = d.root + (d.path ? "/" + d.path : "") + "/";
+    const box = $(t ? "#tDirs" : "#dirs"); box.innerHTML = "";
+    if (d.parent !== null) { const up = el("button", "", ICON.up + "<span>Cartella superiore</span>"); up.type = "button"; up.onclick = () => go(d.parent); box.append(up); }
+    d.dirs.forEach(n => { const b = el("button", "", ICON.folder + `<span>${esc(n)}</span>`); b.type = "button"; b.onclick = () => go((d.path ? d.path + "/" : "") + n); box.append(b); });
     if (!d.dirs.length) { const p = el("p", "muted small", "Nessuna sottocartella."); p.style.padding = "4px 12px"; box.append(p); }
   } catch (e) { toast(e.message); }
 }
-function openNew() { closeSide(); $("#newDir").value = ""; browse(S.browse || ""); $("#newDlg").showModal(); }
+function openNew() { if (S.tab === "team") return openNewTeam(); closeSide(); $("#newDir").value = ""; browse(S.browse || ""); $("#newDlg").showModal(); }
 async function mkdir() {
   const name = $("#newDir").value.trim(); if (!name) return;
   try { const d = await api("/api/folders", { method: "POST", body: { path: S.browse, name } }); $("#newDir").value = ""; browse(d.path); }
@@ -322,6 +338,138 @@ async function createConv(e) {
     const d = await api("/api/convs", { method: "POST", body: { folder: S.browse, mode, model: localStorage.getItem("cantiere-model") || "", effort: localStorage.getItem("cantiere-effort") || "" } });
     $("#newDlg").close(); await loadConvs(); location.hash = d.conv.id; setTimeout(() => $("#input").focus(), 50);
   } catch (err) { toast(err.message); }
+}
+
+
+/* ---------- team: più sessioni di Claude che si scrivono ---------- */
+const MODE_LBL = { plan: "Solo piano", acceptEdits: "Modifica file", bypassPermissions: "Autonomo" };
+const MODEL_LBL = { "": "Modello predefinito", opus: "Opus", sonnet: "Sonnet", haiku: "Haiku" };
+const opts = (o, v) => Object.entries(o).map(([k, l]) => `<option value="${k}"${k === v ? " selected" : ""}>${l}</option>`).join("");
+function composerFor(kind) {
+  const team = kind === "team";
+  $("#toSel").hidden = !team; $("#attachBtn").hidden = team;
+  ["#modeSel", "#modelSel", "#effortSel"].forEach(s => $(s).hidden = team);
+  $("#input").placeholder = team ? "Scrivi al team…" : "";
+}
+async function loadTeams() { S.teams = (await api("/api/teams")).teams; if (S.tab === "team") renderTeamList(); }
+function renderTeamList() {
+  const nav = $("#convList"); nav.innerHTML = "";
+  if (!S.teams.length) { const p = el("p", "muted small", "Nessun team. Un team è un gruppo di sessioni di Claude che si passano il lavoro."); p.style.padding = "4px 10px"; nav.append(p); }
+  for (const t of S.teams) {
+    const b = el("button", "conv");
+    b.setAttribute("aria-current", S.team && S.team.id === t.id ? "true" : "false");
+    b.innerHTML = `<div class="t">${t.running ? '<span class="dot" title="Al lavoro"></span>' : ""}<span>${esc(t.title)}</span></div><div class="s">${esc(t.members.map(m => m.role).join(", "))} · ${ago(t.updated)}</div>`;
+    b.onclick = () => { location.hash = "t-" + t.id; closeSide(); };
+    nav.append(b);
+  }
+}
+function stopPoll() { clearTimeout(S.poll); S.poll = 0; }
+async function loadTeam(id, quiet) {
+  stopPoll();
+  let d; try { d = await api(`/api/teams/${id}`); } catch (e) { toast(e.message); location.hash = ""; return; }
+  if (location.hash.slice(1) !== "t-" + id) return;
+  const t = d.team, first = !S.team || S.team.id !== t.id, stick = first || nearBottom();
+  const changed = first || JSON.stringify(t) !== JSON.stringify(S.team);
+  S.team = t; S.cur = null;
+  $("#convTitle").textContent = t.title; $("#convFolder").textContent = `team · ~/${t.folder} · ${t.members.length} membri`;
+  $("#moreBtn").hidden = false; $("#composer").hidden = false; composerFor("team");
+  const sel = $("#toSel"), keep = sel.value;
+  sel.innerHTML = t.members.map(m => `<option value="${esc(m.role)}">a: ${esc(m.role)}</option>`).join("");
+  if (t.members.some(m => m.role === keep)) sel.value = keep;
+  if (changed) { renderTeam(); if (stick) toBottom(); }
+  renderTeamList();
+  S.poll = setTimeout(() => loadTeam(id, true), t.running ? 2500 : 15000);
+}
+function renderTeam() {
+  const t = S.team, box = $("#msgs"); box.innerHTML = "";
+  const color = {}; t.members.forEach((m, i) => color[m.role] = "c" + (i % 6));
+  const chips = el("div", "members");
+  t.members.forEach(m => {
+    const c = el("button", "chip " + color[m.role]); c.type = "button";
+    c.innerHTML = `${m.running ? '<span class="spin"></span>' : ""}<b>${esc(m.role)}</b><span class="q">${esc(MODE_LBL[m.mode] || "")}${m.model ? " · " + esc(MODEL_LBL[m.model]) : ""}${m.queued ? ` · ${m.queued} in coda` : ""}</span>`;
+    c.title = "Apri la chat di " + m.role; c.onclick = () => location.hash = m.id;
+    chips.append(c);
+  });
+  box.append(chips);
+  if (!t.timeline.length) box.append(el("div", "empty", `<p>Scrivi al team: il messaggio va a <b>${esc(t.members[0].role)}</b> (o a chi scegli in basso). I membri si passano il lavoro da soli e tu vedi qui tutto lo scambio. Tocca un membro per aprire la sua chat completa.</p>`));
+  const conv = {}; t.members.forEach(m => conv[m.role] = m.id);
+  for (const it of t.timeline) {
+    if (it.kind === "msg") {
+      const me = it.from === "tu", n = el("div", "tl-msg " + (me ? "me" : color[it.from] || "c0"));
+      n.innerHTML = `<div class="hd">${me ? "Tu" : `<span class="role ${color[it.from]}">${esc(it.from)}</span>`} → <span class="role ${color[it.role]}">${esc(it.role)}</span></div>`;
+      n.append(document.createTextNode(it.text));
+      box.append(n);
+    } else {
+      const n = el("div", "tl-work " + color[it.role]);
+      n.innerHTML = `<div class="hd"><span class="role">${esc(it.role)}</span></div>` + (it.text ? `<div class="md">${md(it.text)}</div>` : "");
+      if (it.error) n.append(el("div", "note bad", esc(it.error)));
+      if (it.stopped) n.append(el("div", "note warn", "Fermato."));
+      const bits = [];
+      if (it.tools) bits.push(`${it.tools} strumenti`);
+      if (it.seconds != null) bits.push(it.seconds >= 60 ? `${Math.floor(it.seconds / 60)} min` : `${it.seconds} s`);
+      const ft = el("div", "ft", esc(bits.join(" · ")) + (bits.length ? " · " : "") + "<a>dettagli</a>");
+      ft.querySelector("a").onclick = () => location.hash = conv[it.role];
+      n.append(ft); box.append(n);
+    }
+  }
+  for (const m of t.members.filter(m => m.running || m.queued))
+    box.append(el("div", "thinking " + color[m.role], m.running ? `<span class="spin"></span><span><span class="role">${esc(m.role)}</span> sta lavorando…</span>`
+      : `<span><span class="role">${esc(m.role)}</span>: messaggio in coda (aspetta un posto libero)</span>`));
+}
+async function teamSend() {
+  const text = $("#input").value.trim(); if (!text) return;
+  $("#sendBtn").disabled = true;
+  try {
+    await api(`/api/teams/${S.team.id}/send`, { method: "POST", body: { to: $("#toSel").value, text } });
+    $("#input").value = ""; autosize(); loadTeam(S.team.id);
+  } catch (e) { toast(e.message); }
+  finally { $("#sendBtn").disabled = false; }
+}
+function memberRow(m = {}) {
+  const r = el("div", "mrow");
+  r.innerHTML = `<input class="role-in" placeholder="nome (es. capo)" value="${esc(m.role || "")}" autocapitalize="off" autocorrect="off">
+    <input class="dir-in" placeholder="sottocartella (facoltativa)" value="${esc(m.folder || "")}" autocapitalize="off" autocorrect="off">
+    <button type="button" class="iconbtn x" aria-label="Togli">${ICON.err}</button>
+    <select class="mode-in">${opts(MODE_LBL, m.mode || "acceptEdits")}</select><select class="model-in">${opts(MODEL_LBL, m.model || "")}</select>`;
+  r.querySelector(".x").onclick = () => { if ($("#tMembers").children.length > 2) r.remove(); else toast("Servono almeno 2 membri"); };
+  return r;
+}
+function openNewTeam() {
+  closeSide(); $("#tTitle").value = ""; browse(S.tbrowse || S.browse || "", true);
+  const box = $("#tMembers"); box.innerHTML = "";
+  box.append(memberRow({ role: "capo" }), memberRow({ role: "sviluppo" }));
+  $("#teamNewDlg").showModal();
+}
+async function createTeam(e) {
+  if (e.submitter && e.submitter.value !== "ok") return;
+  e.preventDefault();
+  const members = [...$("#tMembers").children].map(r => ({ role: r.querySelector(".role-in").value, folder: r.querySelector(".dir-in").value,
+    mode: r.querySelector(".mode-in").value, model: r.querySelector(".model-in").value }));
+  try {
+    const d = await api("/api/teams", { method: "POST", body: { title: $("#tTitle").value, folder: S.tbrowse, members } });
+    $("#teamNewDlg").close(); await loadTeams(); location.hash = "t-" + d.team.id; setTimeout(() => $("#input").focus(), 50);
+  } catch (err) { toast(err.message); }
+}
+function openTeamOpts() {
+  const t = S.team; $("#tdTitle").value = t.title; $("#tdHops").value = t.max_hops;
+  $("#tdInfo").textContent = `Scambi automatici finora: ${t.hops} su ${t.max_hops}. Cartella: ~/${t.folder}`;
+  $("#teamDlg").showModal();
+}
+async function patchTeam(body) {
+  try { await api(`/api/teams/${S.team.id}`, { method: "PATCH", body }); toast("Salvato"); loadTeam(S.team.id); loadTeams(); } catch (e) { toast(e.message); }
+}
+function initTeam() {
+  document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => setTab(b.dataset.tab));
+  $("#teamForm").addEventListener("submit", createTeam);
+  $("#tAdd").onclick = () => { if ($("#tMembers").children.length < 6) $("#tMembers").append(memberRow()); else toast("Massimo 6 membri"); };
+  $("#backTeam").onclick = () => location.hash = "t-" + $("#backTeam").dataset.team;
+  $("#tdSave").onclick = () => patchTeam({ title: $("#tdTitle").value });
+  $("#tdHopsSave").onclick = () => patchTeam({ maxHops: Number($("#tdHops").value) });
+  $("#tdStop").onclick = async () => { try { await api(`/api/teams/${S.team.id}/stop`, { method: "POST", body: {} }); toast("Fermati"); $("#teamDlg").close(); loadTeam(S.team.id); } catch (e) { toast(e.message); } };
+  $("#tdDelete").onclick = async () => {
+    if (!confirm(`Eliminare il team «${S.team.title}» e le chat dei suoi membri? I file nelle cartelle restano.`)) return;
+    try { await api(`/api/teams/${S.team.id}`, { method: "DELETE" }); $("#teamDlg").close(); S.team = null; location.hash = ""; loadTeams(); } catch (e) { toast(e.message); }
+  };
 }
 
 /* Haiku non ha i livelli di effort: il menu si disattiva */
@@ -457,6 +605,7 @@ function init() {
   $("#newDir").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); mkdir(); } });
   $("#newForm").addEventListener("submit", createConv);
   $("#settingsBtn").onclick = openSettings;
+  initTeam(); renderTabs();
   $("#tokenSave").onclick = saveToken;
   $("#testBtn").onclick = testClaude;
   $("#notesSave").onclick = saveNotes;
@@ -496,6 +645,7 @@ function init() {
     if (document.visibilityState !== "visible" || $("#app").hidden) return;
     loadConvs().catch(() => {});
     notifyUpdate();
+    if (S.team) loadTeam(S.team.id, true);
     if (S.cur) { closeStream(); S.live = null; loadConv(S.cur.id, true); }
   });
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

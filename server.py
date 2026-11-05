@@ -29,6 +29,16 @@ API (tutte richiedono il login, tranne /api/state e /api/login)
   POST   /api/update/run                 avvia update.py: copia del database, aggiornamento, riavvio
   POST   /api/convs/<id>/stop            ferma la risposta in corso
   GET    /api/convs/<id>/events          flusso (text/event-stream) della risposta in corso
+  GET    /api/teams                      elenco dei team
+  POST   /api/teams                      {title, folder, members:[{role, folder, mode, model}]} nuovo team
+  GET    /api/teams/<id>                 team, membri (stato e coda) e cronologia unica dei messaggi
+  PATCH  /api/teams/<id>                 {title?, maxHops?}
+  DELETE /api/teams/<id>                 elimina il team e le chat dei membri (i file restano)
+  POST   /api/teams/<id>/send            {to, text} messaggio dell'utente a un membro (azzera il contatore)
+  POST   /api/teams/<id>/stop            ferma tutti i membri e svuota la coda
+Per i membri dei team (solo con la chiave X-Cantiere-Key che il server dà a ogni risposta in corso):
+  GET    /api/agent/team                 chi sono e chi c'è nel team
+  POST   /api/agent/send                 {to, text} messaggio a un altro membro (vedi team.py)
 Tutto il resto viene servito dalla cartella ./app
 """
 import argparse, base64, datetime, hashlib, hmac, json, mimetypes, os, re, secrets, shutil, signal
@@ -38,7 +48,7 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-APP_VERSION = "0.5"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
+APP_VERSION = "1.0"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
 BASE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE, "app")
 DB_PATH = os.path.join(BASE, "cantiere.db")
@@ -67,6 +77,10 @@ DEFAULT_NOTES = """Stai lavorando su un NAS UGREEN NASync DH2300 (UGOS Pro, base
 _lock = threading.RLock()
 _conn = None
 RUNS = {}            # conv_id -> Run
+AGENT_KEYS = {}      # chiave segreta della risposta in corso -> conv_id (per team.py)
+PORT = 8766
+TEAM_PY = os.path.join(BASE, "team.py")
+MAX_HOPS = 8         # scambi automatici tra membri prima di tornare all'utente
 _login_fail = {"n": 0, "until": 0.0}
 
 
@@ -88,9 +102,20 @@ def db():
                 blocks TEXT NOT NULL, meta TEXT NOT NULL DEFAULT '{}', created INTEGER NOT NULL);
             CREATE INDEX IF NOT EXISTS msgs_conv ON msgs(conv_id, id);
         """)
-        if "effort" not in [r[1] for r in _conn.execute("PRAGMA table_info(convs)")]:
-            _conn.execute("ALTER TABLE convs ADD COLUMN effort TEXT NOT NULL DEFAULT ''")
-            _conn.commit()
+        cols = [r[1] for r in _conn.execute("PRAGMA table_info(convs)")]
+        for col in ("effort", "team_id", "role"):
+            if col not in cols:
+                _conn.execute(f"ALTER TABLE convs ADD COLUMN {col} TEXT NOT NULL DEFAULT ''")
+        _conn.executescript("""
+            CREATE TABLE IF NOT EXISTS teams (
+                id TEXT PRIMARY KEY, title TEXT NOT NULL, folder TEXT NOT NULL DEFAULT '',
+                hops INTEGER NOT NULL DEFAULT 0, max_hops INTEGER NOT NULL DEFAULT 8,
+                created INTEGER NOT NULL, updated INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS inbox (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, conv_id TEXT NOT NULL, from_role TEXT NOT NULL,
+                text TEXT NOT NULL, created INTEGER NOT NULL);
+        """)
+        _conn.commit()
     return _conn
 
 
@@ -256,6 +281,7 @@ class Run:
         self.meta = {}
         self.sid = conv.get("claude_sid")
         self.started = time.time()
+        self.key = secrets.token_urlsafe(24)
 
     def emit(self, ev):
         with self.cond:
@@ -264,7 +290,9 @@ class Run:
 
     def cmd(self):
         c = [claude_bin(), "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
-             "--permission-mode", self.conv["mode"], "--append-system-prompt", notes()]
+             "--permission-mode", self.conv["mode"], "--append-system-prompt", notes() + team_prompt(self.conv)]
+        if self.conv.get("team_id"):
+            c += ["--allowedTools", f"Bash(python3 {TEAM_PY}:*)"]
         if self.conv["model"]:
             c += ["--model", self.conv["model"]]
         if self.conv.get("effort") and self.conv["model"] != "haiku":   # Haiku non ha i livelli di effort
@@ -335,7 +363,11 @@ class Run:
             if not claude_bin():
                 raise RuntimeError("Claude Code non è installato sul NAS (manca ~/.local/bin/claude).")
             os.makedirs(self.cwd, exist_ok=True)
-            self.proc = subprocess.Popen(self.cmd(), cwd=self.cwd, env=claude_env(), stdin=subprocess.PIPE,
+            env = claude_env()
+            if self.conv.get("team_id"):
+                AGENT_KEYS[self.key] = self.conv["id"]
+                env.update(CANTIERE_KEY=self.key, CANTIERE_URL=f"http://127.0.0.1:{PORT}")
+            self.proc = subprocess.Popen(self.cmd(), cwd=self.cwd, env=env, stdin=subprocess.PIPE,
                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                                          encoding="utf-8", errors="replace", bufsize=1, start_new_session=True)
 
@@ -377,10 +409,12 @@ class Run:
             q("UPDATE convs SET updated = ? WHERE id = ?", (now, self.conv["id"]))
             with _lock:
                 RUNS.pop(self.conv["id"], None)
+                AGENT_KEYS.pop(self.key, None)
             with self.cond:
                 self.done = True
                 self.events.append({"op": "done", "meta": self.meta})
                 self.cond.notify_all()
+            dispatch()   # si è liberato un posto: consegna i messaggi in coda
 
     def stop(self):
         self.stopped = True
@@ -391,6 +425,143 @@ class Run:
                 threading.Timer(5, lambda: p.poll() is None and os.killpg(p.pid, signal.SIGKILL)).start()
             except (ProcessLookupError, PermissionError):
                 pass
+
+
+# ---------- team: più conversazioni che si scrivono ----------
+def team_members(team_id):
+    return q("SELECT * FROM convs WHERE team_id = ? ORDER BY created, rowid", (team_id,))
+
+
+def team_prompt(conv):
+    if not conv.get("team_id"):
+        return ""
+    t = q("SELECT * FROM teams WHERE id = ?", (conv["team_id"],), one=True)
+    if not t:
+        return ""
+    others = "\n".join(f"- «{m['role']}» (cartella ~/{m['folder']})" for m in team_members(t["id"])
+                       if m["id"] != conv["id"])
+    return f"""
+
+## Lavori in un team
+Sei «{conv['role']}» nel team «{t['title']}» del Cantiere. Gli altri membri sono conversazioni di Claude Code
+come te, ognuna nella sua cartella:
+{others or '- (nessun altro membro)'}
+
+Per scrivere a un membro usa Bash, esattamente in questa forma (testo lungo con un heredoc):
+    python3 {TEAM_PY} invia <ruolo> <<'FINE'
+    testo del messaggio
+    FINE
+`python3 {TEAM_PY} membri` mostra i membri e cosa stanno facendo.
+Regole:
+- Il messaggio viene consegnato e il destinatario lavora per conto suo. Non aspettare la risposta in un
+  ciclo (niente sleep): finisci il tuo turno; la risposta ti arriverà come nuovo messaggio «da …».
+- Scrivi messaggi completi e autonomi (chi li riceve non vede la tua chat): cosa fare, dove, cosa restituire.
+- Quando ricevi un compito da un membro, alla fine rispondigli con lo stesso comando.
+- Quello che scrivi normalmente in chat lo legge l'utente nella vista Team: tienilo breve.
+- Dopo {t['max_hops']} scambi automatici consecutivi il comando si blocca finché l'utente non riscrive.
+"""
+
+
+def team_out(t, full=False):
+    t = dict(t)
+    ms = team_members(t["id"])
+    queued = {r["conv_id"]: r["n"] for r in q("SELECT conv_id, COUNT(*) AS n FROM inbox GROUP BY conv_id")}
+    t["members"] = [dict(conv_out(m), queued=queued.get(m["id"], 0)) for m in ms]
+    t["running"] = any(m["running"] or m["queued"] for m in t["members"])
+    if full:
+        ids = [m["id"] for m in ms]
+        role = {m["id"]: m["role"] for m in ms}
+        rows = q(f"SELECT * FROM msgs WHERE conv_id IN ({','.join('?' * len(ids))}) ORDER BY created, id",
+                 ids) if ids else []
+        tl = []
+        for r in rows[-400:]:
+            blocks, meta = json.loads(r["blocks"]), json.loads(r["meta"])
+            text = "\n\n".join(b["text"] for b in blocks if b.get("type") == "text" and b.get("text", "").strip())
+            item = {"conv": r["conv_id"], "role": role[r["conv_id"]], "created": r["created"], "text": text}
+            if r["role"] == "user":
+                item.update(kind="msg", **{"from": meta.get("from") or "tu"})
+            else:
+                item.update(kind="work", tools=sum(1 for b in blocks if b.get("type") == "tool"),
+                            error=meta.get("error"), stopped=meta.get("stopped"), seconds=meta.get("seconds"))
+                if not text and not item["tools"] and not item["error"]:
+                    continue
+            tl.append(item)
+        t["timeline"] = tl
+    return t
+
+
+def deliver(conv, from_role, text):
+    """Mette il messaggio nella coda del membro; dispatch() lo consegna appena possibile."""
+    q("INSERT INTO inbox (conv_id, from_role, text, created) VALUES (?,?,?,?)",
+      (conv["id"], from_role, text[:30000], int(time.time())))
+    dispatch()
+
+
+def dispatch():
+    """Consegna i messaggi in coda ai membri fermi, rispettando MAX_RUNS."""
+    started = []
+    with _lock:
+        for row in q("SELECT conv_id, MIN(id) AS first FROM inbox GROUP BY conv_id ORDER BY first"):
+            if len(RUNS) >= MAX_RUNS:
+                break
+            cid = row["conv_id"]
+            if cid in RUNS:
+                continue
+            c = q("SELECT * FROM convs WHERE id = ?", (cid,), one=True)
+            items = q("SELECT * FROM inbox WHERE conv_id = ? ORDER BY id", (cid,))
+            q("DELETE FROM inbox WHERE conv_id = ?", (cid,))
+            if not c:
+                continue
+            parts = []
+            for it in items:
+                blocks = [{"type": "text", "text": it["text"]}]
+                q("INSERT INTO msgs (conv_id, role, blocks, meta, created) VALUES (?,?,?,?,?)",
+                  (cid, "user", json.dumps(blocks, ensure_ascii=False),
+                   json.dumps({"from": it["from_role"]}, ensure_ascii=False), it["created"]))
+                head = "Messaggio dall'utente" if it["from_role"] == "tu" else f"Messaggio da «{it['from_role']}» (membro del team)"
+                parts.append(f"{head}:\n{it['text']}")
+            q("UPDATE convs SET updated = ? WHERE id = ?", (int(time.time()), cid))
+            run = Run(c, "\n\n---\n\n".join(parts))
+            RUNS[cid] = run
+            started.append(run)
+    for run in started:
+        threading.Thread(target=run.run, daemon=True).start()
+
+
+def clean_role(v):
+    r = re.sub(r"[^\w\-]+", "-", str(v or "").strip().lower()).strip("-")[:30]
+    if not r:
+        raise ValueError("Ogni membro ha bisogno di un nome (es. capo, backend, grafica)")
+    return r
+
+
+def create_team(body):
+    title = re.sub(r"\s+", " ", str(body.get("title") or "")).strip()[:60] or "Nuovo team"
+    base = safe_dir(body.get("folder"))
+    if not os.path.isdir(base):
+        raise ValueError("Cartella del team inesistente")
+    members = body.get("members") or []
+    if not 2 <= len(members) <= 6:
+        raise ValueError("Un team ha da 2 a 6 membri")
+    rows, seen = [], set()
+    for m in members:
+        role = clean_role(m.get("role"))
+        if role in seen or role == "tu":
+            raise ValueError(f"Nome ripetuto o non valido: {role}")
+        seen.add(role)
+        sub = str(m.get("folder") or "").strip().strip("/")
+        full = safe_dir(os.path.join(rel_of(base), sub)) if sub else base
+        os.makedirs(full, exist_ok=True)
+        rows.append((role, rel_of(full), m.get("mode") if m.get("mode") in MODES else "acceptEdits",
+                     m.get("model") if m.get("model") in MODELS else ""))
+    tid, now = secrets.token_hex(6), int(time.time())
+    q("INSERT INTO teams (id, title, folder, max_hops, created, updated) VALUES (?,?,?,?,?,?)",
+      (tid, title, rel_of(base), MAX_HOPS, now, now))
+    for i, (role, folder, mode, model) in enumerate(rows):
+        q("INSERT INTO convs (id, title, folder, model, mode, effort, team_id, role, created, updated) "
+          "VALUES (?,?,?,?,?,?,?,?,?,?)", (secrets.token_hex(6), f"{title} · {role}", folder, model, mode, "",
+                                          tid, role, now + i, now))
+    return tid
 
 
 def conv_out(c):
@@ -574,6 +745,15 @@ class Handler(BaseHTTPRequestHandler):
             return True
         return self.headers.get("Content-Type", "").split(";")[0].strip() == "application/json"
 
+    def agent(self):
+        """Membro di un team che chiama da team.py: la chiave vale solo finché la sua risposta è in corso."""
+        cid = AGENT_KEYS.get(self.headers.get("X-Cantiere-Key") or "")
+        c = q("SELECT * FROM convs WHERE id = ?", (cid,), one=True) if cid else None
+        if not c or not c["team_id"]:
+            self.send_json(403, {"error": "Chiave non valida: team.py funziona solo dentro una risposta di un membro del team"})
+            return None
+        return c
+
     def conv_or_404(self, cid):
         c = q("SELECT * FROM convs WHERE id = ?", (cid,), one=True) if ID_RE.match(cid or "") else None
         if not c:
@@ -588,6 +768,14 @@ class Handler(BaseHTTPRequestHandler):
             return self.serve_static(path)
         if path == "/api/state":
             return self.send_json(200, {"configured": os.path.exists(AUTH_FILE), "logged": self.logged()})
+        if path == "/api/agent/team":
+            c = self.agent()
+            if not c:
+                return
+            t = team_out(q("SELECT * FROM teams WHERE id = ?", (c["team_id"],), one=True))
+            return self.send_json(200, {"me": c["role"], "team": t["title"], "hops": t["hops"], "maxHops": t["max_hops"],
+                                        "members": [{"role": m["role"], "folder": m["folder"], "running": m["running"],
+                                                     "queued": m["queued"]} for m in t["members"]]})
         if not self.logged():
             return self.send_json(401, {"error": "Accedi"})
         if path == "/api/settings":
@@ -613,8 +801,14 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {"path": rel, "root": ROOT, "dirs": dirs,
                                         "parent": None if not rel else os.path.dirname(rel)})
         if path == "/api/convs":
-            rows = q("SELECT * FROM convs ORDER BY updated DESC")
+            rows = q("SELECT * FROM convs WHERE team_id = '' ORDER BY updated DESC")
             return self.send_json(200, {"convs": [conv_out(c) for c in rows]})
+        if path == "/api/teams":
+            return self.send_json(200, {"teams": [team_out(t) for t in q("SELECT * FROM teams ORDER BY updated DESC")]})
+        m = re.match(r"^/api/teams/([a-f0-9]{12})$", path)
+        if m:
+            t = q("SELECT * FROM teams WHERE id = ?", (m.group(1),), one=True)
+            return self.send_json(200, {"team": team_out(t, full=True)}) if t else self.send_json(404, {"error": "Team non trovato"})
         m = re.match(r"^/api/convs/([^/]+)(/events)?$", path)
         if m:
             c = self.conv_or_404(m.group(1))
@@ -681,6 +875,27 @@ class Handler(BaseHTTPRequestHandler):
                 tok = secrets.token_urlsafe(32)
                 q("INSERT INTO sessions VALUES (?,?,?)", (tok, int(now), int(now)))
                 return self.send_json(200, {"ok": True}, [self.cookie(tok, SESSION_AGE)])
+            if path == "/api/agent/send":
+                c = self.agent()
+                if not c:
+                    return
+                body = self.read_json(limit=256 * 1024)
+                text = str(body.get("text") or "").strip()
+                to = clean_role(body.get("to"))
+                dest = q("SELECT * FROM convs WHERE team_id = ? AND role = ?", (c["team_id"], to), one=True)
+                if not text:
+                    return self.send_json(400, {"error": "Messaggio vuoto"})
+                if not dest or dest["id"] == c["id"]:
+                    roles = ", ".join(m["role"] for m in team_members(c["team_id"]) if m["id"] != c["id"])
+                    return self.send_json(400, {"error": f"Nessun membro «{to}». Membri: {roles}"})
+                with _lock:
+                    t = q("SELECT * FROM teams WHERE id = ?", (c["team_id"],), one=True)
+                    if t["hops"] >= t["max_hops"]:
+                        return self.send_json(429, {"error": f"Limite di {t['max_hops']} scambi automatici raggiunto: "
+                                                             "non inviato. Riassumi in chat a che punto siete e aspetta l'utente."})
+                    q("UPDATE teams SET hops = hops + 1, updated = ? WHERE id = ?", (int(time.time()), t["id"]))
+                deliver(dest, c["role"], text)
+                return self.send_json(200, {"ok": True, "to": to, "hops": t["hops"] + 1, "maxHops": t["max_hops"]})
             if not self.logged():
                 return self.send_json(401, {"error": "Accedi"})
             if path == "/api/logout":
@@ -735,6 +950,29 @@ class Handler(BaseHTTPRequestHandler):
                 q("INSERT INTO convs (id, title, folder, model, mode, effort, created, updated) VALUES (?,?,?,?,?,?,?,?)",
                   (cid, "Nuova conversazione", rel_of(full), model, mode, effort, now, now))
                 return self.send_json(200, {"conv": conv_out(q("SELECT * FROM convs WHERE id = ?", (cid,), one=True))})
+            if path == "/api/teams":
+                tid = create_team(self.read_json())
+                return self.send_json(200, {"team": team_out(q("SELECT * FROM teams WHERE id = ?", (tid,), one=True))})
+            m = re.match(r"^/api/teams/([a-f0-9]{12})/(send|stop)$", path)
+            if m:
+                t = q("SELECT * FROM teams WHERE id = ?", (m.group(1),), one=True)
+                if not t:
+                    return self.send_json(404, {"error": "Team non trovato"})
+                if m.group(2) == "stop":
+                    for mb in team_members(t["id"]):
+                        q("DELETE FROM inbox WHERE conv_id = ?", (mb["id"],))
+                        r = RUNS.get(mb["id"])
+                        if r:
+                            r.stop()
+                    return self.send_json(200, {"ok": True})
+                body = self.read_json(limit=256 * 1024)
+                text = str(body.get("text") or "").strip()
+                dest = q("SELECT * FROM convs WHERE team_id = ? AND role = ?", (t["id"], str(body.get("to") or "")), one=True)
+                if not text or not dest:
+                    return self.send_json(400, {"error": "Scrivi un messaggio e scegli a chi mandarlo"})
+                q("UPDATE teams SET hops = 0, updated = ? WHERE id = ?", (int(time.time()), t["id"]))
+                deliver(dest, "tu", text)
+                return self.send_json(200, {"ok": True, "queued": dest["id"] not in RUNS})
             m = re.match(r"^/api/convs/([^/]+)/(send|stop)$", path)
             if m:
                 c = self.conv_or_404(m.group(1))
@@ -782,6 +1020,8 @@ class Handler(BaseHTTPRequestHandler):
                 title = re.sub(r"\s+", " ", text)[:60]
                 q("UPDATE convs SET title = ? WHERE id = ?", (title, c["id"]))
             q("UPDATE convs SET updated = ? WHERE id = ?", (now, c["id"]))
+            if c.get("team_id"):
+                q("UPDATE teams SET hops = 0, updated = ? WHERE id = ?", (now, c["team_id"]))
             run = Run(c, prompt)
             RUNS[c["id"]] = run
         threading.Thread(target=run.run, daemon=True).start()
@@ -794,6 +1034,21 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(403, {"error": "Origine non valida"})
         if not self.logged():
             return self.send_json(401, {"error": "Accedi"})
+        mt = re.match(r"^/api/teams/([a-f0-9]{12})$", path)
+        if mt:
+            t = q("SELECT * FROM teams WHERE id = ?", (mt.group(1),), one=True)
+            if not t:
+                return self.send_json(404, {"error": "Team non trovato"})
+            try:
+                body = self.read_json()
+            except ValueError as e:
+                return self.send_json(400, {"error": str(e)})
+            title = re.sub(r"\s+", " ", str(body.get("title") or "")).strip()[:60]
+            if title:
+                q("UPDATE teams SET title = ? WHERE id = ?", (title, t["id"]))
+            if isinstance(body.get("maxHops"), int) and 1 <= body["maxHops"] <= 50:
+                q("UPDATE teams SET max_hops = ? WHERE id = ?", (body["maxHops"], t["id"]))
+            return self.send_json(200, {"team": team_out(q("SELECT * FROM teams WHERE id = ?", (t["id"],), one=True))})
         m = re.match(r"^/api/convs/([^/]+)$", path)
         if not m:
             return self.send_json(404, {"error": "Non trovato"})
@@ -822,6 +1077,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(403, {"error": "Origine non valida"})
         if not self.logged():
             return self.send_json(401, {"error": "Accedi"})
+        mt = re.match(r"^/api/teams/([a-f0-9]{12})$", path)
+        if mt:
+            for mb in team_members(mt.group(1)):
+                q("DELETE FROM inbox WHERE conv_id = ?", (mb["id"],))
+                r = RUNS.get(mb["id"])
+                if r:
+                    r.stop()
+                q("DELETE FROM msgs WHERE conv_id = ?", (mb["id"],))
+                q("DELETE FROM convs WHERE id = ?", (mb["id"],))
+            q("DELETE FROM teams WHERE id = ?", (mt.group(1),))
+            return self.send_json(200, {"ok": True})
         m = re.match(r"^/api/convs/([^/]+)$", path)
         if not m:
             return self.send_json(404, {"error": "Non trovato"})
@@ -856,7 +1122,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global ROOT
+    global ROOT, PORT
     ap = argparse.ArgumentParser(description="Cantiere: chat con Claude Code sul NAS")
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=8766)
@@ -864,8 +1130,10 @@ def main():
                     help="Cartella dentro cui Claude può lavorare (default: la tua home)")
     a = ap.parse_args()
     ROOT = os.path.realpath(os.path.expanduser(a.root))
+    PORT = a.port
     db()
     notes()
+    threading.Thread(target=lambda: (time.sleep(3), dispatch()), daemon=True).start()   # coda rimasta da prima del riavvio
     if not os.path.exists(AUTH_FILE):
         print("ATTENZIONE: password non impostata. Lancia: python3 imposta-password.py", flush=True)
     threading.Thread(target=update_loop, daemon=True).start()
