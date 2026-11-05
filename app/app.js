@@ -472,6 +472,45 @@ function initTeam() {
   };
 }
 
+/* ---------- menu laterale col dito: dal bordo sinistro verso destra si apre, verso sinistra si chiude ---------- */
+function initEdgeSwipe() {
+  const side = $("#side"), EDGE = 28;
+  let sw = null;
+  const small = () => matchMedia("(max-width:860px)").matches;
+  document.addEventListener("touchstart", e => {
+    if (!small() || $("#app").hidden || e.touches.length !== 1) return;
+    const t = e.touches[0], open = $("#app").classList.contains("open");
+    if (!open && t.clientX <= EDGE) sw = { x: t.clientX, y: t.clientY, open: false, dx: 0, dir: null };
+    else if (open && (e.target.closest("#side") || e.target.id === "scrim")) sw = { x: t.clientX, y: t.clientY, open: true, dx: 0, dir: null };
+    else sw = null;
+  }, { passive: true });
+  document.addEventListener("touchmove", e => {
+    if (!sw) return;
+    const t = e.touches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y;
+    if (!sw.dir) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      sw.dir = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+      if (sw.dir === "v") { sw = null; return; }
+      if (!sw.open) document.querySelectorAll("dialog[open]").forEach(d => d.close());   // dalla finestra "nuovo…" si passa al menu
+      side.style.transition = "none";
+    }
+    sw.dx = dx;
+    const w = side.offsetWidth;
+    const x = sw.open ? Math.min(0, dx) : Math.min(0, -w + Math.max(0, dx));
+    side.style.transform = `translateX(${x}px)`;
+  }, { passive: true });
+  const end = () => {
+    if (!sw || sw.dir !== "h") { sw = null; return; }
+    const w = side.offsetWidth, d = sw.dx;
+    side.style.transition = ""; side.style.transform = "";
+    if (sw.open) { if (d < -w * 0.25) closeSide(); }
+    else if (d > Math.min(80, w * 0.3)) $("#app").classList.add("open");
+    sw = null;
+  };
+  document.addEventListener("touchend", end);
+  document.addEventListener("touchcancel", end);
+}
+
 /* Haiku non ha i livelli di effort: il menu si disattiva */
 function paintEffort() { $("#effortSel").disabled = $("#modelSel").value === "haiku"; }
 
@@ -606,6 +645,7 @@ function init() {
   $("#newForm").addEventListener("submit", createConv);
   $("#settingsBtn").onclick = openSettings;
   initTeam(); renderTabs();
+  initEdgeSwipe();
   $("#tokenSave").onclick = saveToken;
   $("#testBtn").onclick = testClaude;
   $("#notesSave").onclick = saveNotes;
