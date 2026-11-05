@@ -638,6 +638,7 @@ async function saveNotes() {
 }
 
 /* ---------- aggiornamenti (da GitHub) ---------- */
+let updPoll = 0;
 function paintUpdate(s) {
   const st = $("#updStatus"), go = $("#updGo");
   const cur = s.installed.label + (s.installed.message ? ` – ${esc(s.installed.message)}` : "");
@@ -646,11 +647,18 @@ function paintUpdate(s) {
     : s.failed ? `L'ultimo aggiornamento non è riuscito: ${esc(s.failed)}`
     : s.error ? `${esc(s.error)}<br>Installata: ${cur}`
     : s.available ? `Nuova versione: <b>${esc(s.latest.message)}</b> (${esc(s.latest.sha.slice(0, 7))})<br>Installata: ${cur}`
+      + (s.busy && s.busy.length ? `<br><b>Bloccato finché lavora:</b> ${esc(s.busy.join(", "))}. Si sblocca da solo quando hanno finito.` : "")
     : s.latest ? `Cantiere è aggiornato. Versione: ${cur}` : `Versione installata: ${cur}`;
+  const busy = !!(s.busy && s.busy.length);
   go.hidden = !s.available || s.running;
-  go.disabled = false;
+  go.disabled = busy;
   $("#updTop").hidden = !s.available;
-  $("#updTop").disabled = !!s.running;
+  $("#updTop").disabled = !!s.running || busy;
+  $("#updTopLbl").textContent = busy ? `Aggiorna · ${s.busy.length} al lavoro` : "Aggiorna";
+  $("#updTop").title = busy ? "Bloccato finché lavora: " + s.busy.join(", ") : "";
+  /* c'è una versione nuova: ricontrollo spesso chi lavora, così il pulsante si sblocca da solo */
+  clearTimeout(updPoll);
+  if (s.available && !s.running) updPoll = setTimeout(() => document.visibilityState === "visible" && notifyUpdate(), busy ? 5000 : 30000);
   $("#verLine").textContent = `Versione ${s.version || "?"} · ${s.installed.label}`;
 }
 async function loadUpdate(check) {

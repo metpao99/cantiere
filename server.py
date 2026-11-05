@@ -48,7 +48,7 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-APP_VERSION = "1.4"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
+APP_VERSION = "1.5"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
 BASE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE, "app")
 DB_PATH = os.path.join(BASE, "cantiere.db")
@@ -706,12 +706,24 @@ def update_step():
     return 3 if "avviato" in log or "Fatto" in log else 2 if "Aggiornati" in log else 1 if "Copia del database" in log else 0
 
 
+def busy_list():
+    """Chi sta lavorando (o ha messaggi in coda): finché c'è qualcuno l'aggiornamento resta bloccato,
+    perché il riavvio interromperebbe le risposte."""
+    ids = set(RUNS) | {r["conv_id"] for r in q("SELECT DISTINCT conv_id FROM inbox")}
+    out = []
+    for cid in ids:
+        c = q("SELECT title, role, team_id FROM convs WHERE id = ?", (cid,), one=True)
+        if c:
+            out.append(c["title"] if not c["team_id"] else c["title"].split(" · ")[0] + " · " + c["role"])
+    return sorted(out)
+
+
 def update_status():
     cur = installed_version()
     with _upd_lock:
         latest, proc = _upd["latest"], _upd["proc"]
         code = proc.poll() if proc else None
-        return {"version": APP_VERSION, "installed": cur, "latest": latest, "checked": _upd["checked"], "error": _upd["error"],
+        return {"version": APP_VERSION, "busy": busy_list(), "installed": cur, "latest": latest, "checked": _upd["checked"], "error": _upd["error"],
                 "available": bool(latest and latest["sha"] != cur["sha"]),
                 "running": bool(proc and code is None),
                 "step": update_step() if proc and code is None else None,
@@ -960,6 +972,10 @@ class Handler(BaseHTTPRequestHandler):
                 check_updates()
                 return self.send_json(200, update_status())
             if path == "/api/update/run":
+                busy = busy_list()
+                if busy:
+                    return self.send_json(409, {"error": "Aggiornamento bloccato: sta lavorando " + ", ".join(busy)
+                                                         + ". Si sblocca da solo quando hanno finito."})
                 if not start_update():
                     return self.send_json(409, {"error": "Aggiornamento già in corso"})
                 return self.send_json(200, {"ok": True})
