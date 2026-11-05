@@ -408,7 +408,9 @@ async function loadTeam(id, quiet) {
   S.poll = setTimeout(() => loadTeam(id, true), t.running ? 2500 : 15000);
 }
 function renderTeam() {
-  const t = S.team, box = $("#msgs"); box.innerHTML = "";
+  const t = S.team, box = $("#msgs");
+  const oldChips = box.querySelector(".members"), keepX = oldChips && oldChips.dataset.team === t.id ? oldChips.scrollLeft : 0;
+  box.innerHTML = "";
   const color = {}; t.members.forEach((m, i) => color[m.role] = "c" + (i % 6));
   const chips = el("div", "members");
   const lastWork = {}; t.timeline.forEach(it => { if (it.kind === "work") lastWork[it.role] = it; });
@@ -418,7 +420,8 @@ function renderTeam() {
     c.title = "Impostazioni di " + m.role; c.onclick = () => openConvDlg(m);
     chips.append(c);
   });
-  box.append(chips);
+  chips.dataset.team = t.id;
+  box.append(chips); chips.scrollLeft = keepX;   // il ridisegno automatico non deve riportare la riga all'inizio
   if (!t.timeline.length) box.append(el("div", "empty", `<p>Scrivi al team: il messaggio va a <b>${esc(t.members[0].role)}</b> (o a chi scegli in basso). I membri si passano il lavoro da soli e tu vedi qui tutto lo scambio. Tocca un membro per aprire la sua chat completa.</p>`));
   const conv = {}; t.members.forEach(m => conv[m.role] = m.id);
   for (const it of t.timeline) {
