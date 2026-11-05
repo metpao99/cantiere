@@ -463,6 +463,8 @@ function init() {
   $("#updCheck").onclick = () => loadUpdate(true);
   $("#updGo").onclick = runUpdate;
   $("#updTop").onclick = runUpdate;
+  /* spazio lasciato all'intestazione fissa (cambia con la barra di stato e la rotazione) */
+  new ResizeObserver(() => document.documentElement.style.setProperty("--toph", $(".top").offsetHeight + "px")).observe($(".top"));
   /* tastiera aperta: tolgo lo spazio per la barra home sotto la casella */
   $("#input").addEventListener("focus", () => document.body.classList.add("kb"));
   $("#input").addEventListener("blur", () => document.body.classList.remove("kb"));

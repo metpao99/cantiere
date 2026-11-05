@@ -187,6 +187,9 @@ textarea.notes{min-height:180px;font:.82rem/1.45 var(--mono)}
   #app.open #side{transform:none}
   #app.open #scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:15}
   #menuBtn{display:grid}
+  /* iOS 26 sfoca la parte alta se l'intestazione non è "fissa": la fisso e lascio il suo spazio alla chat */
+  .top{position:fixed;top:0;left:0;right:0;z-index:10;background:var(--bg)}
+  #chat{padding-top:var(--toph,56px)}
 }
 </style>
 </head>
