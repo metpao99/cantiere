@@ -365,14 +365,19 @@ function paintUpdate(s) {
     : s.latest ? `Cantiere è aggiornato. Versione: ${cur}` : `Versione installata: ${cur}`;
   go.hidden = !s.available || s.running;
   go.disabled = false;
+  $("#updTop").hidden = !s.available;
+  $("#updTop").disabled = !!s.running;
+  $("#verLine").textContent = `Versione ${s.version || "?"} · ${s.installed.label}`;
 }
 async function loadUpdate(check) {
   try { paintUpdate(await api(check ? "/api/update/check" : "/api/update", check ? { method: "POST", body: {} } : {})); }
   catch (e) { $("#updStatus").textContent = e.message; }
 }
 async function runUpdate() {
+  if (!confirm("Aggiornare Cantiere adesso? Il server si riavvia: le risposte in corso si interrompono.")) return;
   const go = $("#updGo"), before = (await api("/api/update")).installed.sha;
-  go.disabled = true;
+  go.disabled = true; $("#updTop").disabled = true;
+  toast("Aggiornamento in corso: non chiudere l'app…");
   try { await api("/api/update/run", { method: "POST", body: {} }); } catch (e) { if (!/già in corso/.test(e.message)) { toast(e.message, true); go.disabled = false; return; } }
   $("#updStatus").textContent = "Aggiornamento in corso: copia del database, download e riavvio. Non chiudere l'app…";
   for (let i = 0; i < 40; i++) {
@@ -386,7 +391,7 @@ async function runUpdate() {
 async function notifyUpdate() {
   try {
     const s = await api("/api/update");
-    if (s.available && !s.running) toast("C'è una nuova versione: Impostazioni › Aggiorna ora");
+    paintUpdate(s);
   } catch {}
 }
 
@@ -439,6 +444,19 @@ function init() {
   $("#notesSave").onclick = saveNotes;
   $("#updCheck").onclick = () => loadUpdate(true);
   $("#updGo").onclick = runUpdate;
+  $("#updTop").onclick = runUpdate;
+  /* trascinando la chat verso il basso si abbassa la tastiera (come in Messaggi) */
+  let y0 = null;
+  const down = e => { y0 = e.touches.length === 1 ? e.touches[0].clientY : null; };
+  const move = e => {
+    if (y0 == null || document.activeElement !== $("#input")) return;
+    if (e.target === $("#input") && $("#input").scrollHeight > $("#input").clientHeight) return;   // scorre il testo
+    if (e.touches[0].clientY - y0 > 40) { $("#input").blur(); y0 = null; }
+  };
+  for (const n of [$("#scroller"), $("#composer")]) {
+    n.addEventListener("touchstart", down, { passive: true });
+    n.addEventListener("touchmove", move, { passive: true });
+  }
   $("#logoutBtn").onclick = logout;
   $("#menuBtn").onclick = () => $("#app").classList.add("open");
   $("#scrim").onclick = closeSide;
@@ -454,6 +472,7 @@ function init() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible" || $("#app").hidden) return;
     loadConvs().catch(() => {});
+    notifyUpdate();
     if (S.cur) { closeStream(); S.live = null; loadConv(S.cur.id, true); }
   });
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

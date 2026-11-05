@@ -77,6 +77,9 @@ input,select,textarea{font:inherit;font-size:16px;color:var(--fg);background:var
 .top .ttl b{display:block;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .top .ttl small{display:block;font-family:var(--mono);font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #menuBtn{display:none}
+.updbtn{flex:none;display:flex;gap:6px;align-items:center;border:0;border-radius:99px;padding:6px 12px;font-size:.85rem;font-weight:650;background:var(--accent);color:var(--accent-fg)}
+.updbtn svg{width:16px;height:16px}
+.updbtn:disabled{opacity:.6}
 
 #scroller{flex:1;overflow-y:auto;overscroll-behavior:contain}
 #msgs{max-width:780px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) 24px max(16px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:18px}
@@ -209,6 +212,7 @@ textarea.notes{min-height:180px;font:.82rem/1.45 var(--mono)}
       <button class="iconbtn" id="menuBtn" aria-label="Conversazioni">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
       <div class="ttl"><b id="convTitle">Cantiere</b><small id="convFolder"></small></div>
+      <button class="updbtn" id="updTop" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Aggiorna</button>
       <button class="iconbtn" id="moreBtn" aria-label="Opzioni conversazione" hidden>
         <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
     </div>
@@ -272,6 +276,7 @@ textarea.notes{min-height:180px;font:.82rem/1.45 var(--mono)}
       <textarea class="notes" id="notesIn"></textarea></label>
     <div><button type="button" class="btn ghost" id="notesSave">Salva istruzioni</button></div>
     <div class="status" id="updStatus">…</div>
+    <div class="muted small" id="verLine">Versione …</div>
     <div class="inline"><button type="button" class="btn ghost" id="updCheck">Controlla</button><button type="button" class="btn" id="updGo" hidden>Aggiorna ora</button></div>
   </div>
   <footer><button type="button" class="btn danger" id="logoutBtn">Esci da questo dispositivo</button><button class="btn" value="cancel">Chiudi</button></footer>

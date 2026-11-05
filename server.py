@@ -38,6 +38,7 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
+APP_VERSION = "0.2"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
 BASE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE, "app")
 DB_PATH = os.path.join(BASE, "cantiere.db")
@@ -487,7 +488,7 @@ def update_status():
     with _upd_lock:
         latest, proc = _upd["latest"], _upd["proc"]
         code = proc.poll() if proc else None
-        return {"installed": cur, "latest": latest, "checked": _upd["checked"], "error": _upd["error"],
+        return {"version": APP_VERSION, "installed": cur, "latest": latest, "checked": _upd["checked"], "error": _upd["error"],
                 "available": bool(latest and latest["sha"] != cur["sha"]),
                 "running": bool(proc and code is None),
                 "failed": update_log_tail() if proc and code not in (None, 0) else None}
