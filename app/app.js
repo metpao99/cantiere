@@ -19,6 +19,36 @@ async function api(path, opts = {}) {
   return data;
 }
 
+
+/* ---------- temi (contrasti verificati: testo ≥ 7:1, testo secondario/link/pulsanti ≥ 4,5:1, sia chiaro sia scuro) ---------- */
+const THEMES = {"mare": {"name": "Mare", "light": {"--bg": "#f2f5f8", "--card": "#fbfcfe", "--fg": "#16212b", "--muted": "#55636f", "--line": "#d5dde5", "--accent": "#1f5f8b", "--accent-fg": "#f4f8fb", "--soft": "#dfeaf3", "--warn": "#8a5e00", "--warn-bg": "#f6ebcc", "--bad": "#a3361f", "--bad-bg": "#f6dcd4", "--code-bg": "#e9eef3"}, "dark": {"--bg": "#0f161d", "--card": "#17212b", "--fg": "#e4ebf1", "--muted": "#9aabbb", "--line": "#2a3744", "--accent": "#7db9e8", "--accent-fg": "#0b1a26", "--soft": "#18293a", "--warn": "#e2b04a", "--warn-bg": "#3a2f12", "--bad": "#ec8a72", "--bad-bg": "#3d1d15", "--code-bg": "#0b1218"}}, "salvia": {"name": "Salvia", "light": {"--bg": "#f3f5f0", "--card": "#fbfcf9", "--fg": "#1c241c", "--muted": "#55614e", "--line": "#d6ddd0", "--accent": "#3b6843", "--accent-fg": "#f3f8f2", "--soft": "#e2eadc", "--warn": "#805b06", "--warn-bg": "#f4ebcf", "--bad": "#a3361f", "--bad-bg": "#f5ddd5", "--code-bg": "#e8ede3"}, "dark": {"--bg": "#121812", "--card": "#1a221a", "--fg": "#e3eadf", "--muted": "#a0ad99", "--line": "#2c3a2c", "--accent": "#8fc79a", "--accent-fg": "#0f1d12", "--soft": "#1f2d21", "--warn": "#dcb257", "--warn-bg": "#3a2f13", "--bad": "#ec8a72", "--bad-bg": "#3d1d15", "--code-bg": "#0d130d"}}, "terracotta": {"name": "Terracotta", "light": {"--bg": "#f8f4f0", "--card": "#fdfbf9", "--fg": "#2a1d17", "--muted": "#69554a", "--line": "#e3d8cf", "--accent": "#9c4327", "--accent-fg": "#fdf6f2", "--soft": "#f1e4da", "--warn": "#805800", "--warn-bg": "#f5e9c8", "--bad": "#a12b2b", "--bad-bg": "#f6dada", "--code-bg": "#efe7df"}, "dark": {"--bg": "#1a1310", "--card": "#241a16", "--fg": "#f0e6df", "--muted": "#b9a497", "--line": "#3a2c25", "--accent": "#eb9a7a", "--accent-fg": "#2a120a", "--soft": "#2f211b", "--warn": "#e2b04a", "--warn-bg": "#3a2f12", "--bad": "#f08a8a", "--bad-bg": "#3f1a1a", "--code-bg": "#130d0b"}}, "lavanda": {"name": "Lavanda", "light": {"--bg": "#f5f3f8", "--card": "#fcfbfe", "--fg": "#221c2b", "--muted": "#5d546a", "--line": "#dcd6e4", "--accent": "#5a499c", "--accent-fg": "#f6f4fc", "--soft": "#e7e2f1", "--warn": "#805b06", "--warn-bg": "#f4ebcf", "--bad": "#a3361f", "--bad-bg": "#f6dcd4", "--code-bg": "#ebe7f1"}, "dark": {"--bg": "#15121b", "--card": "#1e1a26", "--fg": "#e9e4f1", "--muted": "#a89fb8", "--line": "#332c40", "--accent": "#b5a5f0", "--accent-fg": "#1a1233", "--soft": "#252036", "--warn": "#e2b04a", "--warn-bg": "#3a2f12", "--bad": "#ec8a72", "--bad-bg": "#3d1d15", "--code-bg": "#100d15"}}, "grafite": {"name": "Grafite", "light": {"--bg": "#f4f4f5", "--card": "#fcfcfc", "--fg": "#18181b", "--muted": "#595961", "--line": "#dcdce0", "--accent": "#2f2f35", "--accent-fg": "#fafafa", "--soft": "#e6e6e9", "--warn": "#805b06", "--warn-bg": "#f4ebcf", "--bad": "#a3361f", "--bad-bg": "#f6dcd4", "--code-bg": "#eaeaec"}, "dark": {"--bg": "#111113", "--card": "#1b1b1e", "--fg": "#ececee", "--muted": "#a1a1aa", "--line": "#2e2e33", "--accent": "#e4e4e7", "--accent-fg": "#18181b", "--soft": "#232327", "--warn": "#e2b04a", "--warn-bg": "#3a2f12", "--bad": "#ec8a72", "--bad-bg": "#3d1d15", "--code-bg": "#0c0c0e"}}};
+const darkMQ = matchMedia("(prefers-color-scheme: dark)");
+function applyTheme() {
+  const t = THEMES[localStorage.getItem("cantiere-theme")] || THEMES.mare;
+  const sch = localStorage.getItem("cantiere-scheme") || "auto";
+  const dark = sch === "dark" || (sch === "auto" && darkMQ.matches);
+  const root = document.documentElement, p = t[dark ? "dark" : "light"];
+  for (const [k, v] of Object.entries(p)) root.style.setProperty(k, v);
+  root.style.colorScheme = dark ? "dark" : "light";
+  root.classList.toggle("dark", dark);
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.content = p["--bg"]);
+}
+function renderThemes() {
+  const box = $("#themes"); if (!box) return;
+  const cur = localStorage.getItem("cantiere-theme") || "mare", dark = document.documentElement.classList.contains("dark");
+  box.innerHTML = "";
+  for (const [k, t] of Object.entries(THEMES)) {
+    const p = t[dark ? "dark" : "light"], b = el("button", "theme");
+    b.type = "button"; b.setAttribute("aria-pressed", k === cur ? "true" : "false");
+    b.innerHTML = `<span class="sw" style="background:${p["--bg"]};border-color:${p["--line"]}"><i style="background:${p["--accent"]}"></i><i style="background:${p["--soft"]}"></i></span>${esc(t.name)}`;
+    b.onclick = () => { localStorage.setItem("cantiere-theme", k); applyTheme(); renderThemes(); };
+    box.append(b);
+  }
+  $("#schemeSel").value = localStorage.getItem("cantiere-scheme") || "auto";
+}
+applyTheme();
+darkMQ.addEventListener("change", () => { applyTheme(); renderThemes(); });
+
 /* ---------- Markdown essenziale (il testo viene sempre ripulito prima) ---------- */
 function inline(s) {
   const codes = [];
@@ -205,7 +235,7 @@ function renderList() {
     const b = el("button", "conv");
     b.setAttribute("aria-current", S.cur && S.cur.id === c.id ? "true" : "false");
     b.innerHTML = `<div class="t">${c.running ? '<span class="dot" title="Al lavoro"></span>' : ""}<span>${esc(c.title)}</span></div><div class="s">${esc(c.folder || "~")} · ${ago(c.updated)}</div>`;
-    b.onclick = () => { location.hash = c.id; closeSide(); };
+    b.onclick = () => { go(c.id); closeSide(); };
     nav.append(b);
   }
 }
@@ -222,8 +252,10 @@ async function loadConv(id, keepScroll) {
     if (d.conv.running) { if (!S.es) openStream(id); else S.live = S.live || { blocks: [] }; }
     else { closeStream(); S.live = null; setBusy(false); }
     renderMsgs(); renderList();
-  } catch (e) { toast(e.message); location.hash = ""; }
+  } catch (e) { toast(e.message); go(""); }
 }
+/* navigazione senza cronologia: così iOS non offre il "torna indietro" col dito, che si sovrapponeva al menu */
+function go(h) { history.replaceState(null, "", h ? "#" + h : location.pathname + location.search); route(); }
 function route() {
   const id = location.hash.slice(1);
   closeStream(); S.live = null; setBusy(false); stopPoll(); $("#backTeam").hidden = true;
@@ -308,7 +340,7 @@ async function more() {
   if (a.trim()) return patchConv({ title: a.trim() });
   if (!confirm("Eliminare questa conversazione? I file nella cartella restano.")) return;
   await api(`/api/convs/${S.cur.id}`, { method: "DELETE" });
-  location.hash = ""; loadConvs();
+  go(""); loadConvs();
 }
 
 /* ---------- nuova conversazione: scelta della cartella ---------- */
@@ -336,7 +368,7 @@ async function createConv(e) {
   const mode = new FormData($("#newForm")).get("mode");
   try {
     const d = await api("/api/convs", { method: "POST", body: { folder: S.browse, mode, model: localStorage.getItem("cantiere-model") || "", effort: localStorage.getItem("cantiere-effort") || "" } });
-    $("#newDlg").close(); await loadConvs(); location.hash = d.conv.id; setTimeout(() => $("#input").focus(), 50);
+    $("#newDlg").close(); await loadConvs(); go(d.conv.id); setTimeout(() => $("#input").focus(), 50);
   } catch (err) { toast(err.message); }
 }
 
@@ -359,14 +391,14 @@ function renderTeamList() {
     const b = el("button", "conv");
     b.setAttribute("aria-current", S.team && S.team.id === t.id ? "true" : "false");
     b.innerHTML = `<div class="t">${t.running ? '<span class="dot" title="Al lavoro"></span>' : ""}<span>${esc(t.title)}</span></div><div class="s">${esc(t.members.map(m => m.role).join(", "))} · ${ago(t.updated)}</div>`;
-    b.onclick = () => { location.hash = "t-" + t.id; closeSide(); };
+    b.onclick = () => { go("t-" + t.id); closeSide(); };
     nav.append(b);
   }
 }
 function stopPoll() { clearTimeout(S.poll); S.poll = 0; }
 async function loadTeam(id, quiet) {
   stopPoll();
-  let d; try { d = await api(`/api/teams/${id}`); } catch (e) { toast(e.message); location.hash = ""; return; }
+  let d; try { d = await api(`/api/teams/${id}`); } catch (e) { toast(e.message); go(""); return; }
   if (location.hash.slice(1) !== "t-" + id) return;
   const t = d.team, first = !S.team || S.team.id !== t.id, stick = first || nearBottom();
   const changed = first || JSON.stringify(t) !== JSON.stringify(S.team);
@@ -387,7 +419,7 @@ function renderTeam() {
   t.members.forEach(m => {
     const c = el("button", "chip " + color[m.role]); c.type = "button";
     c.innerHTML = `${m.running ? '<span class="spin"></span>' : ""}<b>${esc(m.role)}</b><span class="q">${esc(MODE_LBL[m.mode] || "")}${m.model ? " · " + esc(MODEL_LBL[m.model]) : ""}${m.queued ? ` · ${m.queued} in coda` : ""}</span>`;
-    c.title = "Apri la chat di " + m.role; c.onclick = () => location.hash = m.id;
+    c.title = "Apri la chat di " + m.role; c.onclick = () => go(m.id);
     chips.append(c);
   });
   box.append(chips);
@@ -408,7 +440,7 @@ function renderTeam() {
       if (it.tools) bits.push(`${it.tools} strumenti`);
       if (it.seconds != null) bits.push(it.seconds >= 60 ? `${Math.floor(it.seconds / 60)} min` : `${it.seconds} s`);
       const ft = el("div", "ft", esc(bits.join(" · ")) + (bits.length ? " · " : "") + "<a>dettagli</a>");
-      ft.querySelector("a").onclick = () => location.hash = conv[it.role];
+      ft.querySelector("a").onclick = () => go(conv[it.role]);
       n.append(ft); box.append(n);
     }
   }
@@ -447,7 +479,7 @@ async function createTeam(e) {
     mode: r.querySelector(".mode-in").value, model: r.querySelector(".model-in").value }));
   try {
     const d = await api("/api/teams", { method: "POST", body: { title: $("#tTitle").value, folder: S.tbrowse, members } });
-    $("#teamNewDlg").close(); await loadTeams(); location.hash = "t-" + d.team.id; setTimeout(() => $("#input").focus(), 50);
+    $("#teamNewDlg").close(); await loadTeams(); go("t-" + d.team.id); setTimeout(() => $("#input").focus(), 50);
   } catch (err) { toast(err.message); }
 }
 function openTeamOpts() {
@@ -462,13 +494,13 @@ function initTeam() {
   document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => setTab(b.dataset.tab));
   $("#teamForm").addEventListener("submit", createTeam);
   $("#tAdd").onclick = () => { if ($("#tMembers").children.length < 6) $("#tMembers").append(memberRow()); else toast("Massimo 6 membri"); };
-  $("#backTeam").onclick = () => location.hash = "t-" + $("#backTeam").dataset.team;
+  $("#backTeam").onclick = () => go("t-" + $("#backTeam").dataset.team);
   $("#tdSave").onclick = () => patchTeam({ title: $("#tdTitle").value });
   $("#tdHopsSave").onclick = () => patchTeam({ maxHops: Number($("#tdHops").value) });
   $("#tdStop").onclick = async () => { try { await api(`/api/teams/${S.team.id}/stop`, { method: "POST", body: {} }); toast("Fermati"); $("#teamDlg").close(); loadTeam(S.team.id); } catch (e) { toast(e.message); } };
   $("#tdDelete").onclick = async () => {
     if (!confirm(`Eliminare il team «${S.team.title}» e le chat dei suoi membri? I file nelle cartelle restano.`)) return;
-    try { await api(`/api/teams/${S.team.id}`, { method: "DELETE" }); $("#teamDlg").close(); S.team = null; location.hash = ""; loadTeams(); } catch (e) { toast(e.message); }
+    try { await api(`/api/teams/${S.team.id}`, { method: "DELETE" }); $("#teamDlg").close(); S.team = null; go(""); loadTeams(); } catch (e) { toast(e.message); }
   };
 }
 
@@ -528,6 +560,7 @@ async function openSettings() {
     $("#notesIn").value = s.notes;
   } catch (e) { $("#claudeStatus").textContent = e.message; }
   loadUpdate(false);
+  renderThemes();
 }
 async function saveToken() {
   try { await api("/api/settings", { method: "POST", body: { token: $("#tokenIn").value } }); $("#tokenIn").value = ""; toast("Token salvato"); openSettings(); }
@@ -627,6 +660,14 @@ async function start() {
 function init() {
   $("#loginForm").onsubmit = login;
   $("#composer").onsubmit = send;
+  /* con la tastiera aperta il primo tocco chiudeva solo la tastiera (la casella si abbassava e il pulsante
+     scappava da sotto il dito): invio già al rilascio del dito, senza togliere il fuoco alla casella */
+  $("#sendBtn").addEventListener("touchend", e => {
+    const t = e.changedTouches[0], r = $("#sendBtn").getBoundingClientRect();
+    if (t.clientX < r.left - 10 || t.clientX > r.right + 10 || t.clientY < r.top - 10 || t.clientY > r.bottom + 10) return;
+    e.preventDefault();
+    if (!$("#sendBtn").disabled) $("#composer").requestSubmit();
+  }, { passive: false });
   $("#input").addEventListener("input", autosize);
   $("#input").addEventListener("keydown", e => {
     if (e.key === "Enter" && !e.shiftKey && !touch && !e.isComposing) { e.preventDefault(); $("#composer").requestSubmit(); }
@@ -645,6 +686,7 @@ function init() {
   $("#newForm").addEventListener("submit", createConv);
   $("#settingsBtn").onclick = openSettings;
   initTeam(); renderTabs();
+  $("#schemeSel").onchange = () => { localStorage.setItem("cantiere-scheme", $("#schemeSel").value); applyTheme(); renderThemes(); };
   initEdgeSwipe();
   $("#tokenSave").onclick = saveToken;
   $("#testBtn").onclick = testClaude;

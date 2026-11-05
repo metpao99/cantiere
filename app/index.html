@@ -154,13 +154,19 @@ body.kb .composer{padding-bottom:8px}
 .bar{height:8px;border-radius:99px;background:var(--soft);overflow:hidden}
 .bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .6s ease}
 #updOverlay p{margin:10px 0 0;font-size:.88rem;color:var(--muted)}
+/* ---- temi ---- */
+.themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}
+.theme{display:flex;flex-direction:column;align-items:center;gap:6px;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:8px 6px;font-size:.82rem;font-weight:600}
+.theme[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.theme .sw{display:flex;gap:4px;padding:6px;border-radius:8px;border:1px solid}
+.theme .sw i{width:16px;height:16px;border-radius:50%}
 /* ---- team ---- */
 .tabs{display:flex;gap:4px;margin:0 12px 8px;padding:3px;background:var(--soft);border-radius:10px}
 .tabs button{flex:1;border:0;background:none;border-radius:8px;padding:6px;font-weight:600;font-size:.9rem;color:var(--muted)}
 .tabs button[aria-selected="true"]{background:var(--card);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .updbtn.ghost{background:var(--soft);color:var(--fg)}
 .c0{--rc:#1f5f8b}.c1{--rc:#9a4f1a}.c2{--rc:#2f7a3d}.c3{--rc:#7a3d8f}.c4{--rc:#a3361f}.c5{--rc:#5d6b12}
-@media (prefers-color-scheme:dark){.c0{--rc:#7db9e8}.c1{--rc:#eea36b}.c2{--rc:#7fd08f}.c3{--rc:#cf9be0}.c4{--rc:#ec8a72}.c5{--rc:#c8d46a}}
+.dark .c0{--rc:#7db9e8}.dark .c1{--rc:#eea36b}.dark .c2{--rc:#7fd08f}.dark .c3{--rc:#cf9be0}.dark .c4{--rc:#ec8a72}.dark .c5{--rc:#c8d46a}
 .members{display:flex;flex-wrap:wrap;gap:6px}
 .chip{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-left:4px solid var(--rc);border-radius:8px;background:var(--card);padding:5px 10px;font-size:.85rem}
 .chip b{color:var(--rc)}
@@ -349,6 +355,9 @@ textarea.notes{min-height:180px;font:.82rem/1.45 var(--mono)}
     <label class="f">Istruzioni fisse per Claude <span class="h">Aggiunte a ogni conversazione (com'è fatto il NAS, regole da rispettare…).</span>
       <textarea class="notes" id="notesIn"></textarea></label>
     <div><button type="button" class="btn ghost" id="notesSave">Salva istruzioni</button></div>
+    <div class="f" style="font-size:.85rem;font-weight:600">Tema <span class="muted" style="font-weight:400">(vale per questo dispositivo)</span></div>
+    <div class="themes" id="themes"></div>
+    <label class="f">Aspetto<select id="schemeSel"><option value="auto">Automatico (come il telefono)</option><option value="light">Sempre chiaro</option><option value="dark">Sempre scuro</option></select></label>
     <div class="status" id="updStatus">…</div>
     <div class="muted small" id="verLine">Versione …</div>
     <div class="inline"><button type="button" class="btn ghost" id="updCheck">Controlla</button><button type="button" class="btn" id="updGo" hidden>Aggiorna ora</button></div>
