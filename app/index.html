@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+<title>Cantiere</title>
+<meta name="theme-color" content="#f2f5f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f161d" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Cantiere">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+:root{
+  --bg:#f2f5f8; --card:#fbfcfe; --fg:#16212b; --muted:#55636f; --line:#d5dde5;
+  --accent:#1f5f8b; --accent-fg:#f4f8fb; --soft:#dfeaf3; --warn:#8a5e00; --warn-bg:#f6ebcc; --bad:#a3361f; --bad-bg:#f6dcd4;
+  --code-bg:#e9eef3;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f161d; --card:#17212b; --fg:#e4ebf1; --muted:#9aabbb; --line:#2a3744;
+  --accent:#7db9e8; --accent-fg:#0b1a26; --soft:#18293a; --warn:#e2b04a; --warn-bg:#3a2f12; --bad:#ec8a72; --bad-bg:#3d1d15;
+  --code-bg:#0b1218; color-scheme:dark}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:16px;line-height:1.5;-webkit-text-size-adjust:100%;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+input,select,textarea{font:inherit;font-size:16px;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;width:100%;min-width:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{border:0;border-radius:8px;padding:10px 14px;font-weight:600;background:var(--accent);color:var(--accent-fg)}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.btn.danger{background:transparent;color:var(--bad);border:1px solid var(--line)}
+.btn:disabled{opacity:.5}
+.iconbtn{background:none;border:0;border-radius:8px;width:40px;height:40px;display:grid;place-items:center;flex:none}
+.iconbtn:hover{background:var(--soft)}
+.iconbtn svg{width:22px;height:22px}
+.muted{color:var(--muted)}
+.small{font-size:.85rem}
+
+/* ---- login ---- */
+#login{height:100%;display:grid;place-items:center;padding:24px}
+#login form{width:100%;max-width:360px;display:flex;flex-direction:column;gap:12px}
+#login h1{margin:0 0 4px;font-size:2rem;letter-spacing:-.02em}
+.err{color:var(--bad);font-size:.9rem;min-height:1.3em;margin:0}
+
+/* ---- struttura ---- */
+#app{height:100%;display:grid;grid-template-columns:300px 1fr}
+#side{display:flex;flex-direction:column;border-right:1px solid var(--line);background:var(--card);min-height:0;
+  padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.side-head{display:flex;align-items:center;justify-content:space-between;padding:12px 12px 8px 16px}
+.side-head h1{font-size:1.3rem;margin:0;letter-spacing:-.01em}
+#newBtn{margin:0 12px 8px;display:flex;gap:8px;align-items:center;justify-content:center}
+#convList{flex:1;overflow-y:auto;padding:4px 8px 8px;display:flex;flex-direction:column;gap:2px}
+.conv{display:block;width:100%;text-align:left;border:0;background:none;border-radius:8px;padding:9px 10px}
+.conv:hover{background:var(--soft)}
+.conv[aria-current="true"]{background:var(--soft)}
+.conv .t{display:flex;gap:8px;align-items:center;font-weight:600;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv .t span{overflow:hidden;text-overflow:ellipsis}
+.conv .s{font-size:.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25}}
+.side-foot{border-top:1px solid var(--line);padding:8px}
+.side-foot button{width:100%;display:flex;gap:10px;align-items:center;background:none;border:0;border-radius:8px;padding:10px}
+.side-foot button:hover{background:var(--soft)}
+.side-foot svg{width:20px;height:20px}
+#scrim{display:none}
+
+#chat{display:flex;flex-direction:column;min-width:0;min-height:0;height:100%}
+.top{display:flex;align-items:center;gap:4px;padding:calc(6px + env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) 6px 8px;border-bottom:1px solid var(--line)}
+.top .ttl{flex:1;min-width:0;padding:2px 6px}
+.top .ttl b{display:block;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top .ttl small{display:block;font-family:var(--mono);font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#menuBtn{display:none}
+
+#scroller{flex:1;overflow-y:auto;overscroll-behavior:contain}
+#msgs{max-width:780px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) 24px max(16px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:18px}
+.empty{max-width:520px;margin:12vh auto 0;padding:0 16px;text-align:center}
+.empty h2{font-size:1.5rem;margin:0 0 8px}
+.empty p{color:var(--muted);margin:0 0 20px}
+
+.msg.user{align-self:flex-end;max-width:85%;background:var(--soft);border-radius:16px 16px 4px 16px;padding:10px 14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.files{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.filechip{font:500 .75rem var(--mono);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:3px 7px;white-space:nowrap}
+.msg.bot{min-width:0;overflow-wrap:anywhere}
+.msg.bot>*:first-child{margin-top:0}
+.md p{margin:.5em 0}
+.md h3,.md h4,.md h5,.md h6{margin:1em 0 .4em;line-height:1.3}
+.md h3{font-size:1.2rem}.md h4{font-size:1.08rem}.md h5,.md h6{font-size:1rem}
+.md ul,.md ol{margin:.5em 0;padding-left:1.4em}
+.md li{margin:.2em 0}
+.md blockquote{margin:.5em 0;padding-left:12px;border-left:3px solid var(--line);color:var(--muted)}
+.md a{color:var(--accent)}
+.md hr{border:0;border-top:1px solid var(--line);margin:1em 0}
+.md code{font-family:var(--mono);font-size:.86em;background:var(--code-bg);border-radius:4px;padding:.1em .35em}
+.md .tbl{overflow-x:auto;margin:.6em 0}
+.md table{border-collapse:collapse;font-size:.9rem}
+.md th,.md td{border:1px solid var(--line);padding:5px 9px;text-align:left;vertical-align:top}
+.code{margin:.6em 0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--code-bg)}
+.codebar{display:flex;justify-content:space-between;align-items:center;padding:3px 6px 3px 10px;font:500 .72rem var(--mono);color:var(--muted);border-bottom:1px solid var(--line)}
+.codebar button{background:none;border:0;font:600 .75rem var(--sans);color:var(--accent);padding:4px 6px;border-radius:4px}
+.code pre{margin:0;padding:10px 12px;overflow-x:auto;font:.82rem/1.45 var(--mono)}
+.code pre code{background:none;padding:0;font-size:inherit}
+
+.tool{margin:6px 0;border:1px solid var(--line);border-radius:8px;background:var(--card);font-size:.85rem}
+.tool summary{list-style:none;display:flex;gap:8px;align-items:center;padding:7px 10px;cursor:pointer;min-width:0}
+.tool summary::-webkit-details-marker{display:none}
+.tool .nm{font-weight:650;flex:none}
+.tool .sm{font-family:var(--mono);font-size:.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tool .st{flex:none;width:16px;height:16px;display:grid;place-items:center}
+.tool .st svg{width:14px;height:14px}
+.tool.ok .st{color:var(--accent)} .tool.err .st,.tool.stop .st{color:var(--bad)}
+.tool pre{margin:0;padding:8px 10px;border-top:1px solid var(--line);font:.76rem/1.45 var(--mono);white-space:pre-wrap;max-height:320px;overflow:auto;background:var(--code-bg)}
+.spin{width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(1turn)}}
+.thinking{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:.9rem}
+.note{font-size:.85rem;border-radius:8px;padding:8px 10px;margin-top:8px}
+.note.bad{background:var(--bad-bg)} .note.warn{background:var(--warn-bg)}
+.metaline{font:.72rem var(--mono);color:var(--muted);margin-top:6px}
+
+/* ---- composer ---- */
+.composer{border-top:1px solid var(--line);padding:8px max(12px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+.composer .inner{max-width:780px;margin:0 auto}
+.opts{display:flex;gap:6px;align-items:center;margin-bottom:6px;overflow-x:auto;scrollbar-width:none}
+.opts::-webkit-scrollbar{display:none}
+.opts select{width:auto;flex:none;font-size:.82rem;padding:5px 26px 5px 10px;border-radius:99px;appearance:none;-webkit-appearance:none;
+  background:var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23889' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 10px center}
+.opts .mode-bypassPermissions{border-color:var(--warn);color:var(--warn)}
+#pending{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+#pending .filechip{display:flex;gap:4px;align-items:center}
+#pending .filechip button{border:0;background:none;padding:0 2px;color:var(--muted)}
+.row{display:flex;gap:6px;align-items:flex-end}
+#input{flex:1;resize:none;max-height:40vh;min-height:44px;border-radius:12px;line-height:1.4;padding:10px 12px}
+#sendBtn,#attachBtn{width:44px;height:44px;border-radius:12px;flex:none;display:grid;place-items:center;border:0}
+#sendBtn{background:var(--accent);color:var(--accent-fg)}
+#sendBtn.stop{background:var(--fg);color:var(--bg)}
+#attachBtn{background:transparent;border:1px solid var(--line)}
+#sendBtn svg,#attachBtn svg{width:20px;height:20px}
+
+/* ---- finestre ---- */
+dialog{border:0;border-radius:14px;padding:0;background:var(--card);color:var(--fg);width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 40px);box-shadow:0 10px 40px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+.dlg{display:flex;flex-direction:column;max-height:calc(100dvh - 40px)}
+.dlg header{display:flex;justify-content:space-between;align-items:center;padding:12px 8px 8px 18px}
+.dlg header h2{margin:0;font-size:1.15rem}
+.dlg .body{padding:0 18px 12px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.dlg .body>*{flex-shrink:0}
+.dlg footer{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:.85rem;font-weight:600}
+label.f span.h{font-weight:400;color:var(--muted)}
+.crumb{font:.8rem var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.dirs{border:1px solid var(--line);border-radius:8px;max-height:34vh;overflow-y:auto}
+.dirs button{display:flex;gap:8px;align-items:center;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:9px 12px}
+.dirs button:last-child{border-bottom:0}
+.dirs button:hover{background:var(--soft)}
+.dirs svg{width:18px;height:18px;flex:none;color:var(--muted)}
+.inline{display:flex;gap:6px}
+.inline input{flex:1}
+.status{font-size:.9rem;padding:8px 10px;border-radius:8px;background:var(--soft)}
+.status.bad{background:var(--bad-bg)}
+textarea.notes{min-height:180px;font:.82rem/1.45 var(--mono)}
+.modes{display:flex;flex-direction:column;gap:6px}
+.modes label{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:.9rem}
+.modes input{width:auto;margin:3px 0 0}
+.modes b{display:block}
+
+@media (max-width:860px){
+  #app{grid-template-columns:1fr}
+  #side{position:fixed;inset:0 auto 0 0;width:min(320px,86vw);z-index:20;transform:translateX(-105%);transition:transform .2s ease}
+  #app.open #side{transform:none}
+  #app.open #scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:15}
+  #menuBtn{display:grid}
+}
+</style>
+</head>
+<body>
+
+<div id="login" hidden>
+  <form id="loginForm">
+    <h1>Cantiere</h1>
+    <p class="muted" style="margin:0 0 8px">Claude Code sul tuo NAS.</p>
+    <input id="pw" type="password" autocomplete="current-password" placeholder="Password" required>
+    <button class="btn" type="submit">Entra</button>
+    <p class="err" id="loginErr"></p>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <aside id="side">
+    <div class="side-head"><h1>Cantiere</h1>
+      <button class="iconbtn" id="closeSide" aria-label="Chiudi elenco" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <button class="btn" id="newBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nuova conversazione</button>
+    <nav id="convList" aria-label="Conversazioni"></nav>
+    <div class="side-foot">
+      <button id="settingsBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Impostazioni</button>
+    </div>
+  </aside>
+  <div id="scrim"></div>
+
+  <main id="chat">
+    <div class="top">
+      <button class="iconbtn" id="menuBtn" aria-label="Conversazioni">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
+      <div class="ttl"><b id="convTitle">Cantiere</b><small id="convFolder"></small></div>
+      <button class="iconbtn" id="moreBtn" aria-label="Opzioni conversazione" hidden>
+        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
+    </div>
+    <div id="scroller"><div id="msgs"></div></div>
+    <form class="composer" id="composer" hidden>
+      <div class="inner">
+        <div class="opts">
+          <select id="modeSel" aria-label="Cosa può fare Claude">
+            <option value="plan">Solo piano</option>
+            <option value="acceptEdits">Modifica file</option>
+            <option value="bypassPermissions">Autonomo</option>
+          </select>
+          <select id="modelSel" aria-label="Modello">
+            <option value="">Modello predefinito</option>
+            <option value="opus">Opus</option>
+            <option value="sonnet">Sonnet</option>
+            <option value="haiku">Haiku</option>
+          </select>
+        </div>
+        <div id="pending"></div>
+        <div class="row">
+          <button type="button" id="attachBtn" aria-label="Allega file">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg></button>
+          <input type="file" id="fileInput" multiple hidden>
+          <textarea id="input" rows="1" placeholder="Scrivi a Claude…" enterkeyhint="enter"></textarea>
+          <button type="submit" id="sendBtn" aria-label="Invia">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+        </div>
+      </div>
+    </form>
+  </main>
+</div>
+
+<dialog id="newDlg"><form method="dialog" class="dlg" id="newForm">
+  <header><h2>Nuova conversazione</h2><button class="iconbtn" value="cancel" aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+  <div class="body">
+    <div>
+      <div class="f" style="font-size:.85rem;font-weight:600;margin-bottom:4px">Cartella di lavoro</div>
+      <div class="crumb" id="crumb"></div>
+    </div>
+    <div class="dirs" id="dirs"></div>
+    <div class="inline"><input id="newDir" placeholder="Nuova cartella qui dentro" autocapitalize="off" autocorrect="off"><button type="button" class="btn ghost" id="mkdirBtn">Crea</button></div>
+    <div class="f" style="font-size:.85rem;font-weight:600">Cosa può fare Claude</div>
+    <div class="modes">
+      <label><input type="radio" name="mode" value="plan"><span><b>Solo piano</b><span class="muted small">Legge i file e propone cosa fare, senza modificare nulla.</span></span></label>
+      <label><input type="radio" name="mode" value="acceptEdits" checked><span><b>Modifica file</b><span class="muted small">Crea e modifica file. Comandi semplici (ls, mkdir…) sì; programmi, test e installazioni no.</span></span></label>
+      <label><input type="radio" name="mode" value="bypassPermissions"><span><b>Autonomo</b><span class="muted small">File e comandi senza chiedere (prova, installa nella cartella, avvia). Lavora come il tuo utente, mai da root.</span></span></label>
+    </div>
+  </div>
+  <footer><button class="btn ghost" value="cancel">Annulla</button><button class="btn" id="createBtn" value="ok">Inizia qui</button></footer>
+</form></dialog>
+
+<dialog id="setDlg"><form method="dialog" class="dlg">
+  <header><h2>Impostazioni</h2><button class="iconbtn" value="cancel" aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+  <div class="body">
+    <div class="status" id="claudeStatus">…</div>
+    <label class="f">Token dell'abbonamento <span class="h">Sul NAS: <code>~/.local/bin/claude setup-token</code>, poi incolla qui il token sk-ant-… (vale un anno).</span>
+      <div class="inline"><input id="tokenIn" type="password" placeholder="sk-ant-…" autocomplete="off"><button type="button" class="btn ghost" id="tokenSave">Salva</button></div></label>
+    <div class="inline"><button type="button" class="btn ghost" id="testBtn">Prova collegamento</button></div>
+    <label class="f">Istruzioni fisse per Claude <span class="h">Aggiunte a ogni conversazione (com'è fatto il NAS, regole da rispettare…).</span>
+      <textarea class="notes" id="notesIn"></textarea></label>
+    <div><button type="button" class="btn ghost" id="notesSave">Salva istruzioni</button></div>
+    <div class="status" id="updStatus">…</div>
+    <div class="inline"><button type="button" class="btn ghost" id="updCheck">Controlla</button><button type="button" class="btn" id="updGo" hidden>Aggiorna ora</button></div>
+  </div>
+  <footer><button type="button" class="btn danger" id="logoutBtn">Esci da questo dispositivo</button><button class="btn" value="cancel">Chiudi</button></footer>
+</form></dialog>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+# Dati e segreti (restano solo sul NAS)
+cantiere.db
+cantiere.db-wal
+cantiere.db-shm
+backups/
+auth.json
+claude-token.json
+istruzioni.md
+github-token.txt
+
+# File generati / di esecuzione
+VERSION
+server.log
+server.pid
+update.log
+__pycache__/
+*.pyc
+*.zip
