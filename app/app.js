@@ -105,6 +105,34 @@ function inline(s) {
        .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
   return s.replace(/\u0000(\d+)\u0000/g, (m, i) => `<code>${codes[i]}</code>`);
 }
+/* colori del codice: piccolo evidenziatore (commenti, testi, numeri, parole chiave, funzioni) */
+const KW = new Set(("if else elif for while do return function def class import from export const let var new try catch except finally " +
+  "raise throw with as in of not and or is async await yield break continue pass lambda true false null None True False undefined " +
+  "this self switch case default static public private void int float str bool dict list echo then fi done esac local source " +
+  "select insert update delete where create table into values set struct impl fn pub use mod match enum interface type extends").split(" "));
+function highlight(code, lang) {
+  const hash = /^(py|python|sh|bash|shell|zsh|yaml|yml|toml|ini|conf|r|rb|ruby|dockerfile|make|makefile|)$/i.test(lang || "");
+  const slash = !/^(py|python|sh|bash|shell|zsh|yaml|yml|toml|ini|conf)$/i.test(lang || "");
+  const parts = [
+    /("""[\s\S]*?"""|'''[\s\S]*?''')/.source,
+    slash ? /(\/\*[\s\S]*?\*\/|\/\/[^\n]*)/.source : "((?!))",
+    hash ? /(#[^\n]*)/.source : "((?!))",
+    /(<!--[\s\S]*?-->)/.source,
+    /("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`)/.source,
+    /(\b\d+(?:\.\d+)?\b)/.source,
+    /([A-Za-z_$][\w$]*)(?=\s*\()/.source,
+    /([A-Za-z_$][\w$]*)/.source,
+  ];
+  const re = new RegExp(parts.join("|"), "g");
+  let out = "", last = 0, m;
+  while ((m = re.exec(code))) {
+    if (m.index === re.lastIndex) { re.lastIndex++; continue; }
+    out += esc(code.slice(last, m.index)); last = re.lastIndex;
+    const t = m[0], cls = m[1] ? "s" : m[2] || m[3] || m[4] ? "c" : m[5] ? "s" : m[6] ? "n" : m[7] ? (KW.has(t) ? "k" : "f") : KW.has(t) ? "k" : "";
+    out += cls ? `<span class="tk-${cls}">${esc(t)}</span>` : esc(t);
+  }
+  return out + esc(code.slice(last));
+}
 function md(src) {
   const L = String(src || "").split("\n"), out = [];
   const isList = l => /^\s*([-*+]|\d+[.)])\s+/.test(l);
@@ -118,7 +146,7 @@ function md(src) {
       const buf = []; i++;
       while (i < L.length && !/^\s*```\s*$/.test(L[i])) buf.push(L[i++]);
       i++;
-      out.push(`<div class="code"><div class="codebar"><span>${esc(fence[1])}</span><button type="button" class="copy">Copia</button></div><pre><code>${esc(buf.join("\n"))}</code></pre></div>`);
+      out.push(`<div class="code"><div class="codebar"><span>${esc(fence[1])}</span><button type="button" class="copy">Copia</button></div><pre><code>${buf.length > 400 ? esc(buf.join("\n")) : highlight(buf.join("\n"), fence[1])}</code></pre></div>`);
       continue;
     }
     if (!l.trim()) { i++; continue; }
@@ -209,6 +237,13 @@ function msgEl(m) {
 function nearBottom() { const s = $("#scroller"); return s.scrollHeight - s.scrollTop - s.clientHeight < 120; }
 function toBottom() { const s = $("#scroller"); s.scrollTop = s.scrollHeight; }
 
+/* animo solo quello che compare di nuovo (non tutto a ogni ridisegno) */
+const SEEN = { scope: null, keys: new Set() };
+function animNew(node, scope, key) {
+  if (SEEN.scope !== scope) { SEEN.scope = scope; SEEN.keys = new Set(); SEEN.fresh = true; }
+  if (!SEEN.keys.has(key)) { SEEN.keys.add(key); if (!SEEN.fresh) node.classList.add("anim"); }
+  return node;
+}
 function renderMsgs() {
   const box = $("#msgs"); box.innerHTML = "";
   if (!S.cur) {
@@ -218,8 +253,9 @@ function renderMsgs() {
     $("#emptyNew").onclick = openNew; return;
   }
   if (!S.msgs.length && !S.live) box.append(el("div", "empty", `<p>Claude lavora in <code>${esc(S.cur.folder || "~")}</code>. Chiedigli cosa vuoi costruire.</p>`));
-  S.msgs.forEach(m => box.append(msgEl(m)));
-  if (S.live) { S.live.node = el("div", "msg bot"); box.append(S.live.node); drawLive(); }
+  S.msgs.forEach((m, i) => box.append(animNew(msgEl(m), "c" + S.cur.id, m.role + i)));
+  if (S.live) { S.live.node = animNew(el("div", "msg bot"), "c" + S.cur.id, "assistant" + S.msgs.length); box.append(S.live.node); drawLive(); }
+  SEEN.fresh = false;
   toBottom();
 }
 let raf = 0;
@@ -229,7 +265,8 @@ function drawLive() {
   const n = S.live.node; n.innerHTML = "";
   const box = el("div"); botBlocks(box, S.live.blocks); n.append(box);
   const last = S.live.blocks[S.live.blocks.length - 1];
-  if (!last || last.type !== "text" || !last.text) n.append(el("div", "thinking", '<span class="spin"></span>Claude sta lavorando…'));
+  if (!last || last.type !== "text" || !last.text) n.append(el("div", "thinking", '<span class="dots"><i></i><i></i><i></i></span>Claude sta lavorando…'));
+  else { const mds = n.querySelectorAll(".md"), t = mds[mds.length - 1]; if (t) (t.lastElementChild || t).append(el("span", "caret")); }
   if (stick) toBottom();
 }
 const scheduleDraw = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; drawLive(); }); };
@@ -301,7 +338,12 @@ async function loadConv(id, keepScroll) {
   } catch (e) { toast(e.message); go(""); }
 }
 /* navigazione senza cronologia: così iOS non offre il "torna indietro" col dito, che si sovrapponeva al menu */
-function go(h) { history.replaceState(null, "", h ? "#" + h : location.pathname + location.search); route(); }
+function go(h) {
+  const nav = () => { history.replaceState(null, "", h ? "#" + h : location.pathname + location.search); return route(); };
+  if (document.startViewTransition && !matchMedia("(prefers-reduced-motion:reduce)").matches)
+    document.startViewTransition(() => Promise.race([nav(), new Promise(r => setTimeout(r, 1500))]));
+  else nav();
+}
 function route() {
   const id = location.hash.slice(1);
   closeStream(); S.live = null; setBusy(false); stopPoll(); $("#backTeam").hidden = true;
@@ -312,7 +354,7 @@ function route() {
     $("#convTitle").textContent = "Cantiere"; $("#convFolder").textContent = "";
     $("#moreBtn").hidden = true; $("#composer").hidden = true; renderMsgs(); renderList(); return;
   }
-  loadConv(id);
+  return loadConv(id);
 }
 
 /* ---------- invio ---------- */
@@ -470,12 +512,14 @@ function renderTeam() {
   box.append(chips); chips.scrollLeft = keepX;   // il ridisegno automatico non deve riportare la riga all'inizio
   if (!t.timeline.length) box.append(el("div", "empty", `<p>Scrivi al team: il messaggio va a <b>${esc(t.members[0].role)}</b> (o a chi scegli in basso). I membri si passano il lavoro da soli e tu vedi qui tutto lo scambio. Tocca un membro per aprire la sua chat completa.</p>`));
   const conv = {}; t.members.forEach(m => conv[m.role] = m.id);
+  let idx = 0;
   for (const it of t.timeline) {
+    const key = `${it.conv}-${it.kind}-${it.created}-${idx++}`;
     if (it.kind === "msg") {
       const me = it.from === "tu", n = el("div", "tl-msg " + (me ? "me" : color[it.from] || "c0"));
       n.innerHTML = `<div class="hd">${me ? "Tu" : `<span class="role ${color[it.from]}">${esc(it.from)}</span>`} → <span class="role ${color[it.role]}">${esc(it.role)}</span></div>`;
       n.append(document.createTextNode(it.text));
-      box.append(n);
+      box.append(animNew(n, "t" + t.id, key));
     } else {
       const n = el("div", "tl-work " + color[it.role]);
       n.innerHTML = `<div class="hd"><span class="role">${esc(it.role)}</span></div>` + (it.text ? `<div class="md">${md(it.text)}</div>` : "");
@@ -492,12 +536,13 @@ function renderTeam() {
       if (it.seconds != null) bits.push(it.seconds >= 60 ? `${Math.floor(it.seconds / 60)} min` : `${it.seconds} s`);
       const ft = el("div", "ft", esc(bits.join(" · ")) + (bits.length ? " · " : "") + "<a>dettagli</a>");
       ft.querySelector("a").onclick = () => go(conv[it.role]);
-      n.append(ft); box.append(n);
+      n.append(ft); box.append(animNew(n, "t" + t.id, key));
     }
   }
   for (const m of t.members.filter(m => m.running || m.queued))
-    box.append(el("div", "thinking " + color[m.role], m.running ? `<span class="spin"></span><span><span class="role">${esc(m.role)}</span> sta lavorando…</span>`
+    box.append(el("div", "thinking " + color[m.role], m.running ? `<span class="dots"><i></i><i></i><i></i></span><span><span class="role">${esc(m.role)}</span> sta lavorando…</span>`
       : `<span><span class="role">${esc(m.role)}</span>: messaggio in coda (aspetta un posto libero)</span>`));
+  SEEN.fresh = false;
 }
 async function teamSend() {
   const text = $("#input").value.trim(); if (!text) return;
@@ -814,6 +859,11 @@ function init() {
   $("#updTop").onclick = runUpdate;
   /* spazio lasciato all'intestazione fissa (cambia con la barra di stato e la rotazione) */
   new ResizeObserver(() => document.documentElement.style.setProperty("--toph", $(".top").offsetHeight + "px")).observe($(".top"));
+  new ResizeObserver(() => {
+    const st = nearBottom();
+    document.documentElement.style.setProperty("--compoh", ($("#composer").hidden ? 0 : $("#composer").offsetHeight) + "px");
+    if (st) toBottom();
+  }).observe($("#composer"));
   /* tastiera aperta: tolgo lo spazio per la barra home sotto la casella */
   $("#input").addEventListener("focus", () => document.body.classList.add("kb"));
   $("#input").addEventListener("blur", () => document.body.classList.remove("kb"));

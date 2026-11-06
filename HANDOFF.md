@@ -45,3 +45,11 @@ Dati/segreti mai toccati dagli aggiornamenti: `cantiere.db`, `auth.json`, `claud
   (`meta.denied`) compaiono nella cronologia del team con il pulsante per aprire la scheda; "Salva e fai riprovare"
   manda al membro un messaggio con i nuovi permessi. Le approvazioni una per una non esistono (`claude -p`).
   La stessa scheda si apre dai "…" delle chat singole (rinomina, cartelle in più, elimina).
+
+## Grafica v2.0 (stile iOS 26)
+Blocco CSS "v2" in fondo allo `<style>` di `index.html` (sovrascrive le regole vecchie):
+barre in vetro (`backdrop-filter`) con i messaggi che scorrono sotto (`--toph`/`--compoh` misurate con
+ResizeObserver), animazioni a molla (`--spring`, CSS `linear()`), finestre come fogli dal basso sul telefono,
+passaggio tra schermate con View Transitions (`go()`), comparsa animata solo degli elementi nuovi (`animNew`),
+indicatore a puntini e cursore durante la scrittura, evidenziatore del codice `highlight()` senza librerie
+(colori con contrasto ≥ 4,5:1 su tutti i temi). `prefers-reduced-motion` spegne le animazioni.

@@ -236,6 +236,74 @@ textarea.notes{min-height:180px;font:.82rem/1.45 var(--mono)}
   .top{position:fixed;top:0;left:0;right:0;z-index:10;background:var(--bg)}
   #chat{padding-top:var(--toph,56px)}
 }
+
+/* =================== v2: grafica stile iOS 26 =================== */
+:root{--spring:linear(0,.06,.25 9%,.68 20%,.92 30%,1.02 40%,1.035 47%,1.01 62%,1);--r:14px;
+  --glass:color-mix(in srgb,var(--bg) 70%,transparent);--glass-line:color-mix(in srgb,var(--line) 70%,transparent)}
+body{font-feature-settings:"kern","liga";-webkit-font-smoothing:antialiased;letter-spacing:-.003em}
+.btn{border-radius:12px;transition:transform .25s var(--spring),filter .2s}
+.btn:active,.iconbtn:active,.conv:active,.chip:active,.theme:active,#sendBtn:active,#attachBtn:active,.updbtn:active{transform:scale(.96)}
+.iconbtn,.conv,.chip,.theme,#sendBtn,#attachBtn,.updbtn{transition:transform .25s var(--spring),background .2s}
+input,select,textarea{border-radius:12px}
+/* barre in vetro: i messaggi scorrono sotto */
+#chat{position:relative}
+.top{position:absolute;top:0;left:0;right:0;z-index:10;border-bottom:.5px solid var(--glass-line);
+  background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%)}
+#chat{padding-top:0!important}
+#msgs{padding-top:calc(var(--toph,56px) + 16px);padding-bottom:calc(var(--compoh,0px) + 20px)}
+.composer{position:absolute;left:0;right:0;bottom:0;z-index:10;border-top:.5px solid var(--glass-line);
+  background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%)}
+#input{border-radius:22px;padding:11px 16px;background:color-mix(in srgb,var(--card) 85%,transparent)}
+#sendBtn,#attachBtn{border-radius:50%}
+#attachBtn{background:color-mix(in srgb,var(--card) 70%,transparent)}
+.opts select{background-color:color-mix(in srgb,var(--card) 80%,transparent)}
+.members{top:var(--toph,56px);margin:-16px -16px 0;background:var(--glass);border-bottom:.5px solid var(--glass-line);
+  -webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%)}
+.chip{border-radius:99px;border-left-width:1px;padding:6px 12px}
+.chip b::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--rc);margin-right:6px;vertical-align:1px}
+/* messaggi */
+.msg.user{border-radius:20px 20px 6px 20px;background:var(--accent);color:var(--accent-fg);padding:10px 15px}
+.msg.user .filechip{background:color-mix(in srgb,var(--accent-fg) 18%,transparent);border-color:transparent;color:inherit}
+.tl-msg.me{border-radius:20px 20px 6px 20px;background:var(--accent);color:var(--accent-fg)}
+.tl-msg.me .hd,.tl-msg.me .role{color:inherit;opacity:.85}
+.tool{border-radius:12px;border-color:var(--glass-line)}
+.code{border-radius:12px}
+.note{border-radius:12px}
+.anim{animation:popin .42s var(--spring) both}
+@keyframes popin{from{opacity:0;transform:translateY(10px) scale(.985)}}
+/* indicatore "sta scrivendo" e cursore */
+.dots{display:inline-flex;gap:4px;align-items:center;padding:4px 0}
+.dots i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:dot 1.2s ease-in-out infinite}
+.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+@keyframes dot{0%,60%,100%{transform:translateY(0);opacity:.35}30%{transform:translateY(-4px);opacity:1}}
+.caret{display:inline-block;width:.5em;height:1.05em;margin-left:2px;vertical-align:-.15em;border-radius:2px;background:var(--accent);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+/* colori del codice (contrasti ≥ 4,5:1 su tutti i temi) */
+.tk-k{color:#7a2f8f}.tk-s{color:#2c6631}.tk-n{color:#8f4a0a}.tk-c{color:#5a6570;font-style:italic}.tk-f{color:#1d5a85}
+.dark .tk-k{color:#d29bea}.dark .tk-s{color:#8fd19a}.dark .tk-n{color:#f0b072}.dark .tk-c{color:#8d9aa6}.dark .tk-f{color:#7db9e8}
+/* barra laterale e finestre con la molla */
+#side{transition:transform .5s var(--spring)!important}
+dialog{border-radius:22px;border:.5px solid var(--glass-line)}
+dialog[open]{animation:dlgin .45s var(--spring)}
+dialog::backdrop{background:rgba(0,0,0,.3);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+@keyframes dlgin{from{opacity:0;transform:scale(.94)}}
+@media (max-width:860px){
+  #side{border-radius:0 22px 22px 0;box-shadow:8px 0 40px rgba(0,0,0,.18)}
+  #app.open #scrim{-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+  dialog{margin:auto 0 0;width:100%;max-width:100%;border-radius:24px 24px 0 0;max-height:94dvh}
+  .dlg{max-height:94dvh}
+  .dlg header::before{content:"";position:absolute;left:50%;top:6px;width:36px;height:5px;border-radius:3px;background:var(--line);transform:translateX(-50%)}
+  .dlg header{position:relative;padding-top:18px}
+  dialog[open]{animation:sheetin .5s var(--spring)}
+  @keyframes sheetin{from{transform:translateY(100%)}}
+  .top{position:fixed}   /* fissa sul telefono: così iOS 26 non sfoca la parte alta */
+}
+/* passaggio animato tra schermate */
+::view-transition-old(root){animation:vtout .22s ease-in both}
+::view-transition-new(root){animation:vtin .38s var(--spring) both}
+@keyframes vtout{to{opacity:0}}
+@keyframes vtin{from{opacity:0;transform:translateX(18px)}}
+@media (prefers-reduced-motion:reduce){*,::view-transition-new(root),::view-transition-old(root){animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
