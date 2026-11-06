@@ -8,7 +8,19 @@
 <meta name="theme-color" content="#0f161d" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<script>
+/* barra di stato (ora, rete, batteria): "black-translucent" = l'app ci passa sotto, in vetro; iOS però scrive
+   l'ora sempre in bianco, quindi in automatico la uso solo col tema scuro. iOS la legge all'apertura dell'app. */
+(function () {
+  var sb = "default";
+  try {
+    var m = localStorage.getItem("cantiere-statusbar") || "auto", s = localStorage.getItem("cantiere-scheme") || "auto";
+    var dark = s === "dark" || (s === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+    if (m === "glass" || (m === "auto" && dark)) sb = "black-translucent";
+  } catch (e) {}
+  document.write('<meta name="apple-mobile-web-app-status-bar-style" content="' + sb + '">');
+})();
+</script>
 <meta name="apple-mobile-web-app-title" content="Cantiere">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -465,6 +477,8 @@ dialog::backdrop{background:rgba(0,0,0,.3);-webkit-backdrop-filter:blur(4px);bac
     <div><button type="button" class="btn ghost" id="notesSave">Salva istruzioni</button></div>
     <div class="f" style="font-size:.85rem;font-weight:600">Tema <span class="muted" style="font-weight:400">(vale per questo dispositivo)</span></div>
     <div class="themes" id="themes"></div>
+    <label class="f">Barra di stato (ora, rete, batteria) <span class="h">In vetro l'app continua sotto l'ora, ma iOS la scrive sempre in bianco: leggibile solo col tema scuro. Si applica chiudendo e riaprendo l'app.</span>
+      <select id="sbSel"><option value="auto">Automatica: in vetro col tema scuro</option><option value="glass">Sempre in vetro</option><option value="solid">Sempre piena</option></select></label>
     <label class="f">Aspetto<select id="schemeSel"><option value="auto">Automatico (come il telefono)</option><option value="light">Sempre chiaro</option><option value="dark">Sempre scuro</option></select></label>
     <div class="status" id="updStatus">…</div>
     <div class="muted small" id="verLine">Versione …</div>

@@ -91,6 +91,7 @@ function renderThemes() {
     box.append(b);
   }
   $("#schemeSel").value = localStorage.getItem("cantiere-scheme") || "auto";
+  $("#sbSel").value = localStorage.getItem("cantiere-statusbar") || "auto";
 }
 applyTheme();
 darkMQ.addEventListener("change", () => { applyTheme(); renderThemes(); });
@@ -234,8 +235,21 @@ function msgEl(m) {
   const d = el("div", "msg bot"); const box = el("div"); botBlocks(box, m.blocks); d.append(box, metaEl(m.meta || {}));
   return d;
 }
-function nearBottom() { const s = $("#scroller"); return s.scrollHeight - s.scrollTop - s.clientHeight < 120; }
-function toBottom() { const s = $("#scroller"); s.scrollTop = s.scrollHeight; }
+/* "incollato in fondo": lo decide solo chi scorre col dito. Se sei in fondo ci resti qualunque cosa cambi
+   (testo che arriva, barra in vetro che cambia altezza, tastiera): prima i puntini finivano sotto la barra */
+const STICK = { on: true };
+function nearBottom() { return STICK.on; }
+function toBottom() { const s = $("#scroller"); STICK.on = true; s.scrollTop = s.scrollHeight; }
+function initStick() {
+  const s = $("#scroller");
+  s.addEventListener("scroll", () => {
+    STICK.on = s.scrollHeight - s.scrollTop - s.clientHeight < 80;
+  }, { passive: true });
+  const keep = () => { if (STICK.on) toBottom(); };
+  new ResizeObserver(keep).observe(s);
+  new ResizeObserver(keep).observe($("#msgs"));
+  if (window.visualViewport) visualViewport.addEventListener("resize", keep);
+}
 
 /* animo solo quello che compare di nuovo (non tutto a ogni ridisegno) */
 const SEEN = { scope: null, keys: new Set() };
@@ -849,6 +863,7 @@ function init() {
   $("#newForm").addEventListener("submit", createConv);
   $("#settingsBtn").onclick = openSettings;
   initTeam(); renderTabs();
+  $("#sbSel").onchange = () => { localStorage.setItem("cantiere-statusbar", $("#sbSel").value); toast("Chiudi e riapri l'app per vedere la barra di stato nuova"); };
   $("#schemeSel").onchange = () => { localStorage.setItem("cantiere-scheme", $("#schemeSel").value); applyTheme(); renderThemes(); };
   initEdgeSwipe(); initConvDlg();
   $("#tokenSave").onclick = saveToken;
@@ -860,10 +875,10 @@ function init() {
   /* spazio lasciato all'intestazione fissa (cambia con la barra di stato e la rotazione) */
   new ResizeObserver(() => document.documentElement.style.setProperty("--toph", $(".top").offsetHeight + "px")).observe($(".top"));
   new ResizeObserver(() => {
-    const st = nearBottom();
     document.documentElement.style.setProperty("--compoh", ($("#composer").hidden ? 0 : $("#composer").offsetHeight) + "px");
-    if (st) toBottom();
+    if (STICK.on) requestAnimationFrame(toBottom);
   }).observe($("#composer"));
+  initStick();
   /* tastiera aperta: tolgo lo spazio per la barra home sotto la casella */
   $("#input").addEventListener("focus", () => document.body.classList.add("kb"));
   $("#input").addEventListener("blur", () => document.body.classList.remove("kb"));
