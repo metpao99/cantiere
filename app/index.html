@@ -328,10 +328,17 @@ dialog::backdrop{background:rgba(0,0,0,.3);-webkit-backdrop-filter:blur(4px);bac
 .composer{padding-bottom:max(8px,calc(env(safe-area-inset-bottom) - 14px));padding-top:7px}
 body.kb .composer{padding-bottom:7px}
 .opts{margin-bottom:5px}
-/* v2.5: con la barra di stato in vetro iOS calcola "100%" senza la barra di stato e l'app resta più corta dello
-   schermo (fascia vuota in fondo): uso l'altezza vera dello schermo */
-html,body{height:100vh}
-@supports (height:100dvh){html,body{height:100dvh}}
+/* v2.6: con la barra di stato in vetro iOS dà all'app un'area più corta dello schermo esattamente
+   dell'altezza della barra di stato (fascia vuota in fondo, anche per gli elementi fissi): faccio sporgere
+   l'app in basso di quella misura. Con la barra piena env(safe-area-inset-top) è 0 e non cambia nulla. */
+html,body{height:100%;overflow:hidden}
+#app{position:fixed;top:0;left:0;right:0;height:calc(100% + env(safe-area-inset-top))}
+#login{position:fixed;top:0;left:0;right:0;height:calc(100% + env(safe-area-inset-top))}
+@media (max-width:860px){
+  #side{bottom:auto;height:calc(100% + env(safe-area-inset-top))}
+  #app.open #scrim{bottom:auto;height:calc(100% + env(safe-area-inset-top))}
+  dialog{margin-bottom:calc(-1 * env(safe-area-inset-top))}
+}
 /* barra di stato in vetro: iOS 26 sfuma tutto quello che sta appena sotto l'orologio, quindi il titolo scende un po' */
 /* (con la barra piena il margine di sicurezza in alto è 0, quindi lì non cambia nulla) */
 .top{padding-top:calc(env(safe-area-inset-top) * 1.3 + 6px)}
