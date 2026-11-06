@@ -338,68 +338,22 @@ body.kb .composer{padding-bottom:7px}
 /* (con la barra piena il margine di sicurezza in alto è 0, quindi lì non cambia nulla) */
 .top{padding-top:calc(env(safe-area-inset-top) * 1.3 + 6px)}
 #side{padding-top:calc(env(safe-area-inset-top) * 1.3)}
-/* =================== vista Ufficio del team =================== */
+/* =================== vista Ufficio del team (pixel art in assonometria) =================== */
 .vsw{flex:none;display:flex;padding:2px;border-radius:99px;background:var(--soft);margin-right:4px}
 .vsw button{border:0;background:none;border-radius:99px;padding:5px 11px;font-size:.8rem;font-weight:650;color:var(--muted)}
 .vsw button[aria-pressed="true"]{background:var(--card);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.12)}
-.office{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:4px}
 .office-head{font-size:.85rem;color:var(--muted);margin:2px 2px 0}
-.desk{position:relative;border:0;text-align:left;background:var(--card);border-radius:18px;padding:8px 10px 10px;box-shadow:0 1px 0 var(--line),0 6px 18px rgba(0,0,0,.05);
-  background-image:linear-gradient(to bottom,transparent 62%,color-mix(in srgb,var(--soft) 70%,transparent) 62%)}
-.desk svg{display:block;width:100%;height:auto;overflow:visible}
-.desk .nm{font-weight:700;color:var(--rc);font-size:.92rem;margin-top:2px;display:flex;gap:6px;align-items:center}
-.desk .st{font-size:.78rem;color:var(--muted);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em;overflow-wrap:anywhere}
-.desk .tm{font:.7rem var(--mono);color:var(--muted);margin-left:auto;font-weight:400}
-.desk .bub{position:absolute;left:14%;top:2px;min-width:30px;height:26px;padding:0 8px;border-radius:13px;display:none;align-items:center;justify-content:center;gap:3px;
-  background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,.15);font-size:.85rem;font-weight:700;white-space:nowrap}
-.desk .bub::after{content:"";position:absolute;left:12px;bottom:-5px;width:10px;height:10px;background:inherit;transform:rotate(45deg);border-radius:2px}
-.desk .bub i{width:5px;height:5px;border-radius:50%;background:var(--muted);animation:dot 1.2s ease-in-out infinite}
-.desk .bub i:nth-child(2){animation-delay:.15s}.desk .bub i:nth-child(3){animation-delay:.3s}
-.desk .plane{position:absolute;right:10%;top:18%;font-size:1.1rem;display:none;animation:fly 1.6s ease-in infinite}
-@keyframes fly{0%{transform:translate(0,0) rotate(-10deg);opacity:0}15%{opacity:1}100%{transform:translate(40px,-40px) rotate(-25deg);opacity:0}}
-/* personaggio e oggetti */
-.desk .body,.desk .arm{fill:var(--rc);stroke:var(--rc)}
-.desk .skin{fill:#f1c7a5}.dark .desk .skin{fill:#d9a982}
-.desk .wood{fill:color-mix(in srgb,var(--muted) 45%,var(--card))}
-.desk .mon{fill:#1d2733}.desk .scr{fill:#2b3a4a;transition:fill .3s}
-.desk .kb{fill:color-mix(in srgb,var(--muted) 60%,var(--card))}
-.desk .ln,.desk .prompt,.desk .lens,.desk .paper,.desk .zz{opacity:0}
-.desk .ln{fill:#8fd19a}
-.desk .prompt{fill:#e6edf3;font:700 9px var(--mono)}
-.desk .lens{stroke:#e6edf3;fill:none;stroke-width:2}
-.desk .paper{fill:#fff;stroke:#c9d2db}
-.desk .zz{fill:var(--muted);font:700 10px var(--sans)}
-.desk .head,.desk .arm{transform-box:fill-box}
-.desk .arm{transform-origin:0% 50%}
-/* stati */
-.desk.idle .scr{fill:#151d26}
-.desk.idle .zz{opacity:1;animation:zz 2.4s ease-in-out infinite}
-.desk.idle .head{transform:translateY(2px)}
-@keyframes zz{0%{transform:translate(0,4px);opacity:0}30%{opacity:1}100%{transform:translate(6px,-8px);opacity:0}}
-.desk.think .bub,.desk.write .bub,.desk.queued .bub,.desk.blocked .bub,.desk.message .bub{display:flex}
-.desk.think .head{animation:bob 2s ease-in-out infinite}
-@keyframes bob{50%{transform:translateY(-2px) rotate(-4deg)}}
-.desk.think .scr{fill:#34506b}
-.desk.write .arm,.desk.edit .arm,.desk.command .arm,.desk.message .arm{animation:type .28s ease-in-out infinite alternate}
-@keyframes type{to{transform:rotate(9deg)}}
-.desk.write .scr,.desk.edit .scr{fill:#20303f}
-.desk.write .ln,.desk.edit .ln{opacity:1;animation:lines 1.4s steps(4) infinite}
-@keyframes lines{0%{transform:scaleX(.2)}100%{transform:scaleX(1)}}
-.desk .ln{transform-box:fill-box;transform-origin:0 50%}
-.desk.command .prompt{opacity:1;animation:blink 1s steps(1) infinite}
-.desk.command .scr{fill:#0f1720}
-.desk.read .paper{opacity:1;animation:readp 2.6s ease-in-out infinite}
-.desk.read .head{transform:rotate(8deg) translateY(1px)}
-@keyframes readp{50%{transform:translateY(-2px)}}
-.desk.web .lens{opacity:1;animation:lens 2s ease-in-out infinite}
-@keyframes lens{50%{transform:translate(6px,3px)}}
-.desk.web .scr{fill:#2a4a6a}
-.desk.plan .paper{opacity:1}
-.desk.message .plane{display:block}
-.desk.incoming{box-shadow:0 0 0 2px var(--rc),0 6px 18px rgba(0,0,0,.08)}
-.desk.blocked{box-shadow:0 0 0 2px var(--warn),0 6px 18px rgba(0,0,0,.05)}
-.desk.blocked .bub{color:var(--warn)}
-.desk.queued .bub{font-size:.8rem}
+.room{position:relative;border-radius:18px;overflow:hidden;background:var(--soft);box-shadow:0 1px 0 var(--line),0 6px 18px rgba(0,0,0,.06)}
+.room canvas{display:block;width:100%;height:auto;image-rendering:pixelated;image-rendering:crisp-edges;cursor:pointer}
+.room .tag{position:absolute;transform:translate(-50%,-100%);font:700 .68rem var(--sans);padding:1px 6px;border-radius:6px;white-space:nowrap;pointer-events:none;
+  background:color-mix(in srgb,var(--card) 88%,transparent);color:var(--rc);box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.staff{display:flex;flex-direction:column;gap:4px}
+.staff button{display:flex;gap:8px;align-items:center;text-align:left;border:0;border-radius:12px;background:var(--card);padding:8px 10px;font-size:.85rem;min-width:0}
+.staff .pd{flex:none;width:9px;height:9px;border-radius:2px;background:var(--rc)}
+.staff b{color:var(--rc);flex:none}
+.staff .st{flex:1;min-width:0;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.staff .tm{flex:none;font:.7rem var(--mono);color:var(--muted)}
+.staff .blocked .st{color:var(--warn);font-weight:600}
 @media (prefers-reduced-motion:reduce){*,::view-transition-new(root),::view-transition-old(root){animation:none!important;transition:none!important}}
 </style>
 </head>

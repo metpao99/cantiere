@@ -591,73 +591,190 @@ function renderTeam() {
   SEEN.fresh = false;
 }
 
-/* ---------- vista Ufficio: ogni membro alla sua scrivania, animato secondo quello che sta facendo ---------- */
-const DESK_SVG = `<svg viewBox="0 0 160 100" aria-hidden="true">
-  <rect class="wood" x="18" y="70" width="128" height="6" rx="3"/><rect class="wood" x="26" y="76" width="5" height="20" rx="2"/><rect class="wood" x="134" y="76" width="5" height="20" rx="2"/>
-  <rect class="wood" x="30" y="80" width="30" height="4" rx="2" opacity=".7"/><rect class="wood" x="43" y="84" width="4" height="12" opacity=".7"/>
-  <g class="head"><circle class="skin" cx="45" cy="34" r="10"/><path class="body" d="M37 31a9 9 0 0 1 17-3" stroke-width="0" opacity=".85"/></g>
-  <rect class="body" x="35" y="45" width="21" height="28" rx="9"/>
-  <path class="arm" d="M52 54 L74 64" stroke-width="5" stroke-linecap="round" fill="none"/>
-  <rect class="kb" x="68" y="65" width="28" height="4" rx="1.5"/>
-  <rect class="mon" x="96" y="34" width="44" height="31" rx="3"/><rect class="scr" x="99" y="37" width="38" height="25" rx="1.5"/><rect class="mon" x="115" y="65" width="6" height="5"/>
-  <rect class="ln" x="102" y="41" width="26" height="2.5" rx="1"/><rect class="ln" x="102" y="46" width="18" height="2.5" rx="1"/><rect class="ln" x="102" y="51" width="30" height="2.5" rx="1"/><rect class="ln" x="102" y="56" width="14" height="2.5" rx="1"/>
-  <text class="prompt" x="103" y="53">&gt;_</text>
-  <g class="lens"><circle cx="114" cy="48" r="5"/><path d="M118 52l5 5"/></g>
-  <rect class="paper" x="56" y="40" width="13" height="16" rx="1.5" transform="rotate(-12 62 48)"/>
-  <text class="zz" x="56" y="22">z z</text>
-</svg><div class="bub"></div><div class="plane">✈️</div>`;
+/* ---------- vista Ufficio: stanza in pixel art vista in assonometria ---------- */
 const READ_TOOLS = /^(Read|Glob|Grep|NotebookRead|LS)$/, EDIT_TOOLS = /^(Write|Edit|MultiEdit|NotebookEdit)$/;
 function deskState(m, last) {
   const a = m.activity;
   if (!m.running) {
-    if (m.queued) return ["queued", `In coda: ${m.queued} messagg${m.queued > 1 ? "i" : "io"} da leggere`, "⏳"];
-    if (last && last.denied && last.denied.length) return ["blocked", "Bloccato da un permesso: tocca per sistemare", "!"];
-    return ["idle", "In pausa", ""];
+    if (m.queued) return ["queued", `In coda: ${m.queued} messagg${m.queued > 1 ? "i" : "io"} da leggere`];
+    if (last && last.denied && last.denied.length) return ["blocked", "Bloccato da un permesso: tocca per sistemare"];
+    return ["idle", "In pausa"];
   }
-  if (!a || a.kind === "think") return ["think", "Ragiona…", "dots"];
-  if (a.kind === "write") return ["write", "Scrive: " + (a.text || "…"), "dots"];
-  if (a.kind === "message") return ["message", `Scrive a «${a.to}»`, "→ " + a.to];
+  if (!a || a.kind === "think") return ["think", "Ragiona…"];
+  if (a.kind === "write") return ["write", "Scrive: " + (a.text || "…")];
+  if (a.kind === "message") return ["message", `Scrive a «${a.to}»`];
   const t = a.tool || "", s = a.text || "";
-  if (READ_TOOLS.test(t)) return ["read", "Legge " + s, ""];
-  if (EDIT_TOOLS.test(t)) return ["edit", (t === "Write" ? "Scrive " : "Modifica ") + s, ""];
-  if (/^Web/.test(t)) return ["web", "Sul web: " + s, ""];
-  if (t === "TodoWrite") return ["plan", "Organizza il lavoro", ""];
-  if (t === "Task" || t === "Agent") return ["command", "Sotto-agente: " + s, ""];
-  return ["command", "Comando: " + s, ""];
+  if (READ_TOOLS.test(t)) return ["read", "Legge " + s];
+  if (EDIT_TOOLS.test(t)) return ["edit", (t === "Write" ? "Scrive " : "Modifica ") + s];
+  if (/^Web/.test(t)) return ["web", "Sul web: " + s];
+  if (t === "TodoWrite") return ["plan", "Organizza il lavoro"];
+  if (t === "Task" || t === "Agent") return ["command", "Sotto-agente: " + s];
+  return ["command", "Comando: " + s];
+}
+const OFF = { W: 176, H: 132, ox: 88, oy: 44, raf: 0, frame: 0, last: 0, members: [], canvas: null };
+const ROLE_RGB = { light: ["#1f5f8b", "#9a4f1a", "#2f7a3d", "#7a3d8f", "#a3361f", "#5d6b12"], dark: ["#7db9e8", "#eea36b", "#7fd08f", "#cf9be0", "#ec8a72", "#c8d46a"] };
+const SLOTS = [[1.6, 1.4], [5.8, 1.4], [1.6, 4.6], [5.8, 4.6], [1.6, 7.8], [5.8, 7.8]];
+const PAL = {
+  light: { f1: "#d8c7a8", f2: "#ccb998", wl: "#ece6da", wr: "#e0d9cb", edge: "#b9ad97", dt: "#b98552", dl: "#94663c", dr: "#7d5531",
+    mon: "#2a2f37", win: "#a8daf2", winb: "#ffffff", pot: "#b8683b", leaf: "#4f9a4a", leaf2: "#3d7d3a", board: "#fafaf5", frame: "#8a8f96",
+    skin: "#f1c7a5", hair: "#4a3426", stool: "#5a6069", shadow: "rgba(0,0,0,.12)" },
+  dark: { f1: "#3b3446", f2: "#342d3e", wl: "#2c2836", wr: "#26222f", edge: "#1c1924", dt: "#7a5436", dl: "#5f412a", dr: "#4f3622",
+    mon: "#14171c", win: "#1e3553", winb: "#c9d8ef", pot: "#8a4c2b", leaf: "#3f7d3b", leaf2: "#2f612d", board: "#d9dbe0", frame: "#5b6068",
+    skin: "#d9a982", hair: "#2b1f17", stool: "#3d424a", shadow: "rgba(0,0,0,.25)" },
+};
+const SPR_BACK = ["..hhhhh..", ".hhhhhhh.", ".hhhhhhh.", ".hhhhhhh.", "..shhhs..", "...sss...", ".bbbbbbb.", "bbbbbbbbb", "bbbbbbbbb", "dbbbbbbbd", ".bbbbbbb.", ".dd...dd."];
+const isoP = (gx, gy, z = 0) => [OFF.ox + (gx - gy) * 8, OFF.oy + (gx + gy) * 4 - z];
+function poly(c, pts, col) { c.fillStyle = col; c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); c.fill(); }
+function isoBox(c, gx, gy, w, d, h, z, top, left, right) {
+  poly(c, [isoP(gx, gy + d, z), isoP(gx + w, gy + d, z), isoP(gx + w, gy + d, z + h), isoP(gx, gy + d, z + h)], left);
+  poly(c, [isoP(gx + w, gy, z), isoP(gx + w, gy + d, z), isoP(gx + w, gy + d, z + h), isoP(gx + w, gy, z + h)], right);
+  poly(c, [isoP(gx, gy, z + h), isoP(gx + w, gy, z + h), isoP(gx + w, gy + d, z + h), isoP(gx, gy + d, z + h)], top);
+}
+const px = (c, x, y, w, h, col) => { c.fillStyle = col; c.fillRect(Math.round(x), Math.round(y), w, h); };
+function drawSprite(c, rows, x, y, pal, headDy = 0) {
+  rows.forEach((r, j) => { for (let i = 0; i < r.length; i++) { const col = pal[r[i]]; if (col) px(c, x + i, y + j + (j < 6 ? headDy : 0), 1, 1, col); } });
+}
+const GLYPH = { z: ["###", "..#", ".#.", "#..", "###"], "!": ["#", "#", "#", ".", "#"] };
+function glyph(c, g, x, y, col) { GLYPH[g].forEach((r, j) => { for (let i = 0; i < r.length; i++) if (r[i] === "#") px(c, x + i, y + j, 1, 1, col); }); }
+function drawRoom(c, P, dark) {
+  const H = 38;
+  poly(c, [isoP(0, 0), isoP(0, 10), isoP(0, 10, H), isoP(0, 0, H)], P.wl);            // parete sinistra
+  poly(c, [isoP(0, 0), isoP(10, 0), isoP(10, 0, H), isoP(0, 0, H)], P.wr);            // parete destra
+  poly(c, [isoP(0, 0, H), isoP(0, 10, H), isoP(0, 10, H + 2), isoP(0, 0, H + 2)], P.edge);
+  poly(c, [isoP(0, 0, H), isoP(10, 0, H), isoP(10, 0, H + 2), isoP(0, 0, H + 2)], P.edge);
+  for (let i = 0; i < 10; i++) for (let k = 0; k < 10; k++)
+    poly(c, [isoP(i, k), isoP(i + 1, k), isoP(i + 1, k + 1), isoP(i, k + 1)], (i + k) % 2 ? P.f1 : P.f2);
+  // finestra sulla parete destra (di sera con le stelle)
+  poly(c, [isoP(3.5, 0, 14), isoP(7, 0, 14), isoP(7, 0, 31), isoP(3.5, 0, 31)], P.frame);
+  poly(c, [isoP(3.7, 0, 15), isoP(6.8, 0, 15), isoP(6.8, 0, 30), isoP(3.7, 0, 30)], P.win);
+  poly(c, [isoP(5.2, 0, 15), isoP(5.4, 0, 15), isoP(5.4, 0, 30), isoP(5.2, 0, 30)], P.frame);
+  if (dark) [[4.3, 26], [6.2, 22], [4.8, 19]].forEach(([g, z]) => { const [x, y] = isoP(g, 0, z); px(c, x, y, 1, 1, P.winb); });
+  else { const [x, y] = isoP(4.2, 0, 26); px(c, x, y, 3, 1, P.winb); px(c, x + 1, y - 1, 3, 1, P.winb); }
+  // lavagna sulla parete sinistra con due scarabocchi
+  poly(c, [isoP(0, 3, 13), isoP(0, 7.4, 13), isoP(0, 7.4, 30), isoP(0, 3, 30)], P.frame);
+  poly(c, [isoP(0, 3.2, 14), isoP(0, 7.2, 14), isoP(0, 7.2, 29), isoP(0, 3.2, 29)], P.board);
+  [["#1f5f8b", 4, 26, 12], ["#a3361f", 4.4, 22, 8], ["#2f7a3d", 4.2, 18, 14]].forEach(([col, g, z, n]) => {
+    for (let i = 0; i < n; i++) { const [x, y] = isoP(0, g + i * 0.2, z); px(c, x, y, 1, 1, col); } });
+  // pianta nell'angolo
+  isoBox(c, 8.6, 0.5, 0.9, 0.9, 6, 0, P.pot, P.pot, P.dl);
+  const [lx, ly] = isoP(9.05, 0.95, 6);
+  [[-4, -4], [-2, -7], [0, -9], [2, -6], [3, -3], [-1, -3], [1, -12], [-3, -10]].forEach(([dx, dy], i) => px(c, lx + dx, ly + dy, 2, 3, i % 2 ? P.leaf : P.leaf2));
+}
+function screenFace(gx, gy, w, d, z, h) {
+  const A = isoP(gx, gy + d, z), B = isoP(gx + w, gy + d, z), D = isoP(gx, gy + d, z + h);
+  return (u, v) => [A[0] + u * (B[0] - A[0]), A[1] + u * (B[1] - A[1]) - v * (A[1] - D[1])];
+}
+function drawDesk(c, P, m, f) {
+  const [sx, sy] = m.slot, st = m.state;
+  // scrivania e monitor
+  isoBox(c, sx, sy, 2.2, 0.9, 7, 0, P.dt, P.dl, P.dr);
+  isoBox(c, sx + 0.5, sy + 0.05, 1.3, 0.14, 12, 7, P.mon, P.mon, P.mon);
+  const sf = screenFace(sx + 0.58, sy + 0.05, 1.14, 0.14, 8, 10);
+  const scr = { idle: "#151a21", queued: "#151a21", blocked: "#3a1712", think: "#2c4a66", write: "#1d2a37", edit: "#1d2a37", command: "#0b1016",
+    read: "#e9e5d9", plan: "#e9e5d9", web: "#3b6ea6", message: "#2c4a66" }[st];
+  poly(c, [sf(0, 0), sf(1, 0), sf(1, 1), sf(0, 1)], scr);
+  const dot = (u, v, col, w = 1) => { const [x, y] = sf(u, v); px(c, x, y, w, 1, col); };
+  if (st === "write" || st === "edit") for (let r = 0; r < 4; r++) { const len = ((f + r * 3) % 5) + 2; for (let i = 0; i < len; i++) dot(0.12 + i * 0.1, 0.8 - r * 0.2, r % 2 ? "#8fd19a" : "#e6edf3"); }
+  if (st === "command") { dot(0.12, 0.35, "#7fd08f"); dot(0.2, 0.42, "#7fd08f"); dot(0.12, 0.49, "#7fd08f"); if (f % 2) dot(0.32, 0.3, "#7fd08f", 2); }
+  if (st === "read" || st === "plan") for (let r = 0; r < 4; r++) for (let i = 0; i < 6 - (r % 2) * 2; i++) dot(0.15 + i * 0.12, 0.8 - r * 0.2, "#7b8794");
+  if (st === "web") { const o = (f % 6) * 0.05; dot(0.35 + o, 0.65, "#ffffff", 3); dot(0.33 + o, 0.55, "#ffffff"); dot(0.55 + o, 0.55, "#ffffff"); dot(0.35 + o, 0.45, "#ffffff", 3); dot(0.6 + o, 0.35, "#ffffff"); }
+  if (st === "think" || st === "message") if (f % 4 < 2) dot(0.45, 0.5, "#9fc4e6", 2);
+  // sgabello e personaggio (di spalle, davanti al monitor)
+  const cx = sx + 1.15, cy = sy + 1.7;
+  isoBox(c, cx - 0.25, cy - 0.25, 0.5, 0.5, 4, 0, P.stool, P.stool, P.stool);
+  const [bx, by] = isoP(cx, cy, 4);
+  const x0 = bx - 4, y0 = by - 12;
+  const pal = { h: P.hair, s: P.skin, b: m.rgb, d: m.rgb };
+  let hd = 0;
+  if (st === "idle") hd = 1;
+  if (st === "think") hd = f % 8 < 4 ? 0 : -1;
+  drawSprite(c, SPR_BACK, x0, y0, pal, hd);
+  px(c, x0 + 1, y0 + 11, 2, 1, P.shadow); px(c, x0 + 6, y0 + 11, 2, 1, P.shadow);
+  if (["write", "edit", "command", "message"].includes(st)) {   // gomiti che si alternano: digita
+    const a = f % 2; px(c, x0 - 1, y0 + 8 + a, 1, 2, m.rgb); px(c, x0 + 9, y0 + 9 - a, 1, 2, m.rgb);
+  }
+  if (st === "read") { px(c, x0 + 8, y0 + 5, 4, 5, "#ffffff"); px(c, x0 + 9, y0 + 6, 2, 1, "#9aa5b1"); px(c, x0 + 9, y0 + 8, 2, 1, "#9aa5b1"); }
+  // sopra la testa
+  const hx = x0 + 4, hy = y0 - 2;
+  if (st === "idle") { const k = f % 12; glyph(c, "z", hx + 3 + (k >> 2), hy - 4 - (k >> 1), dark() ? "#c9d1d9" : "#6b7785"); }
+  if (st === "think") { px(c, hx - 1, hy - 9, 12, 7, "#ffffff"); px(c, hx, hy - 10, 10, 9, "#ffffff"); px(c, hx - 2, hy - 1, 2, 2, "#ffffff");
+    for (let i = 0; i < 3; i++) px(c, hx + 1 + i * 3, hy - 6, 2, 2, (f >> 1) % 3 === i ? "#1f5f8b" : "#b7c3cf"); }
+  if (st === "queued") { px(c, hx, hy - 9, 7, 1, "#8a5e00"); px(c, hx, hy - 1, 7, 1, "#8a5e00"); px(c, hx + 1, hy - 8, 5, 2, "#e2b04a"); px(c, hx + 2, hy - 6, 3, 2, "#e2b04a"); px(c, hx + 3, hy - 4, 1, 1, "#e2b04a"); px(c, hx + 2, hy - 3, 3, 2, f % 4 < 2 ? "#e2b04a" : "#f3d27a"); }
+  if (st === "blocked" && f % 4 < 3) glyph(c, "!", hx + 2, hy - 8, "#e5484d");
+  m.head = [hx + 1, hy];
+}
+const dark = () => document.documentElement.classList.contains("dark");
+function drawOffice() {
+  const cv = OFF.canvas; if (!cv) return;
+  const c = cv.getContext("2d"), dk = dark(), P = PAL[dk ? "dark" : "light"], f = OFF.frame;
+  c.clearRect(0, 0, OFF.W, OFF.H);
+  drawRoom(c, P, dk);
+  const ms = OFF.members.slice().sort((a, b) => (a.slot[0] + a.slot[1]) - (b.slot[0] + b.slot[1]));
+  ms.forEach(m => drawDesk(c, P, m, f));
+  // aeroplanino di carta verso il collega
+  OFF.members.forEach(m => {
+    if (m.state !== "message") return;
+    const to = OFF.members.find(x => x.role === m.to); if (!to || !to.head || !m.head) return;
+    const p = (f % 14) / 14, [x1, y1] = m.head, [x2, y2] = to.head;
+    const x = x1 + (x2 - x1) * p, y = y1 + (y2 - y1) * p - Math.sin(p * Math.PI) * 14;
+    px(c, x, y, 4, 1, "#ffffff"); px(c, x + 1, y - 1, 2, 1, "#ffffff"); px(c, x + 1, y + 1, 2, 1, "#c9d2db");
+  });
+}
+function officeLoop(ts) {
+  if (!OFF.canvas || !document.body.contains(OFF.canvas) || S.teamView !== "office" || !S.team) { OFF.raf = 0; return; }
+  OFF.raf = requestAnimationFrame(officeLoop);
+  if (document.visibilityState !== "visible" || ts - OFF.last < 125) return;   // ~8 fotogrammi al secondo, come la pixel art
+  OFF.last = ts; OFF.frame++; drawOffice();
+}
+function placeTags() {
+  const cv = OFF.canvas, room = cv && cv.parentElement; if (!room) return;
+  const k = cv.clientWidth / OFF.W;
+  OFF.members.forEach(m => {
+    let t = room.querySelector(`.tag[data-id="${m.id}"]`);
+    if (!t) { t = el("div", "tag " + m.cls); t.dataset.id = m.id; room.append(t); }
+    t.textContent = m.role;
+    const [sx, sy] = m.slot, [bx, by] = isoP(sx + 1.15, sy + 1.7, 4);
+    t.style.left = (bx * k) + "px"; t.style.top = ((by - 24) * k) + "px";
+  });
+  room.querySelectorAll(".tag").forEach(t => { if (!OFF.members.some(m => m.id === t.dataset.id)) t.remove(); });
 }
 function renderOffice(t, color, lastWork) {
   const box = $("#msgs");
-  let off = box.querySelector(".office");
+  let room = box.querySelector(".room");
   const chips = chipsEl(t, color, lastWork);
-  if (!off || off.dataset.team !== t.id) {
-    box.innerHTML = ""; box.append(chips);
-    box.append(el("div", "office-head"));
-    off = el("div", "office"); off.dataset.team = t.id; box.append(off);
+  if (!room || room.dataset.team !== t.id) {
+    box.innerHTML = ""; box.append(chips, el("div", "office-head"));
+    room = el("div", "room"); room.dataset.team = t.id;
+    const cv = document.createElement("canvas"); cv.width = OFF.W; cv.height = OFF.H; room.append(cv);
+    cv.onclick = e => {
+      const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * OFF.W / r.width, y = (e.clientY - r.top) * OFF.H / r.height;
+      let best = null, bd = 18;
+      OFF.members.forEach(m => { if (!m.head) return; const d = Math.hypot(m.head[0] - x, m.head[1] + 8 - y); if (d < bd) { bd = d; best = m; } });
+      if (best) { const mm = S.team.members.find(z => z.id === best.id); if (mm) openConvDlg(mm, best.state === "blocked" ? (lastWork[mm.role] || {}).denied : null); }
+    };
+    box.append(room, el("div", "staff"));
+    OFF.canvas = cv;
+    new ResizeObserver(placeTags).observe(cv);
   } else box.querySelector(".members").replaceWith(chips);
-  const working = t.members.filter(m => m.running).length;
-  box.querySelector(".office-head").textContent = working ? `${working} al lavoro · tocca una scrivania per i dettagli` : "Tutti in pausa · scrivi al team per farli lavorare";
-  const incoming = new Set(t.members.filter(m => m.activity && m.activity.kind === "message").map(m => m.activity.to));
-  const ids = new Set();
-  t.members.forEach(m => {
-    ids.add(m.id);
-    let d = off.querySelector(`[data-id="${m.id}"]`);
-    if (!d) {
-      d = el("button", "desk " + color[m.role]); d.type = "button"; d.dataset.id = m.id;
-      d.innerHTML = DESK_SVG + `<div class="nm"><span></span><span class="tm"></span></div><div class="st"></div>`;
-      d.onclick = () => { const mm = S.team.members.find(x => x.id === m.id); if (mm) openConvDlg(mm, lastWork[mm.role] && !mm.running ? lastWork[mm.role].denied : null); };
-      off.append(d);
-    }
-    const [state, label, bub] = deskState(m, lastWork[m.role]);
-    const cls = `desk ${color[m.role]} ${state}${incoming.has(m.role) ? " incoming" : ""}`;
-    if (d.className !== cls) d.className = cls;   // cambio la classe solo se cambia lo stato: le animazioni non ripartono
-    d.querySelector(".nm span").textContent = m.role;
-    const since = m.activity && m.activity.since ? Math.max(0, Math.round(Date.now() / 1000 - m.activity.since)) : null;
-    d.querySelector(".tm").textContent = since == null ? "" : since >= 60 ? `${Math.floor(since / 60)} min` : `${since} s`;
-    d.querySelector(".st").textContent = label;
-    const b = d.querySelector(".bub"), html = bub === "dots" ? "<i></i><i></i><i></i>" : esc(bub);
-    if (b.dataset.v !== html) { b.innerHTML = html; b.dataset.v = html; }
+  const pal = dark() ? ROLE_RGB.dark : ROLE_RGB.light;
+  OFF.members = t.members.slice(0, SLOTS.length).map((m, i) => {
+    const [state, label] = deskState(m, lastWork[m.role]);
+    const old = OFF.members.find(x => x.id === m.id);
+    return { id: m.id, role: m.role, slot: SLOTS[i], cls: color[m.role], rgb: pal[i % 6], state, label,
+      to: m.activity && m.activity.to, since: m.activity && m.activity.since, head: old && old.head };
   });
-  off.querySelectorAll(".desk").forEach(d => { if (!ids.has(d.dataset.id)) d.remove(); });
+  const working = t.members.filter(m => m.running).length;
+  box.querySelector(".office-head").textContent = working ? `${working} al lavoro · tocca un personaggio per i dettagli` : "Tutti in pausa · scrivi al team per farli lavorare";
+  const staff = box.querySelector(".staff"); staff.innerHTML = "";
+  OFF.members.forEach(m => {
+    const since = m.since ? Math.max(0, Math.round(Date.now() / 1000 - m.since)) : null;
+    const b = el("button", `${m.cls} ${m.state}`); b.type = "button";
+    b.innerHTML = `<span class="pd"></span><b>${esc(m.role)}</b><span class="st">${esc(m.label)}</span><span class="tm">${since == null ? "" : since >= 60 ? Math.floor(since / 60) + " min" : since + " s"}</span>`;
+    b.onclick = () => { const mm = S.team.members.find(z => z.id === m.id); if (mm) openConvDlg(mm, m.state === "blocked" ? (lastWork[mm.role] || {}).denied : null); };
+    staff.append(b);
+  });
+  placeTags(); drawOffice();
+  if (!OFF.raf) OFF.raf = requestAnimationFrame(officeLoop);
 }
 
 async function teamSend() {

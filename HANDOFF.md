@@ -58,3 +58,7 @@ indicatore a puntini e cursore durante la scrittura, evidenziatore del codice `h
   corso → pensa / scrive / strumento / messaggio a un collega). `renderOffice` aggiorna le scrivanie senza
   ridisegnarle (le animazioni CSS non ripartono); stati: idle, think, write, read, edit, command, web, plan,
   message (aeroplanino, la scrivania del destinatario si illumina), queued, blocked.
+- Ufficio in pixel art (v3.2): canvas 176×132 ingrandito con `image-rendering:pixelated`, stanza in
+  assonometria (`isoP`, `isoBox`), fino a 6 postazioni (`SLOTS`), personaggi di spalle davanti al monitor;
+  contenuto dello schermo e oggetti sopra la testa secondo lo stato (`deskState`); aeroplanino tra le teste.
+  Animazione a ~8 fps solo con la vista aperta e l'app visibile (`officeLoop`). Nomi in HTML sopra la canvas.
