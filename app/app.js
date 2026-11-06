@@ -781,6 +781,7 @@ async function runUpdate() {
   /* barra: ogni fase ha un tratto; dentro la fase avanza piano da sola finché il NAS non passa alla successiva */
   const STEPS = [[0, 15, "Avvio…"], [15, 40, "Copia del database…"], [40, 70, "Scarico la nuova versione da GitHub…"], [70, 95, "Riavvio del server…"]];
   let step = 0, pct = 0, down = false;
+  document.querySelectorAll("dialog[open]").forEach(d => d.close());   // le finestre stanno sopra a tutto: chiudo, se no la barra resta dietro
   $("#updOverlay").hidden = false;
   const paint = () => {
     const [a, b, txt] = STEPS[step];

@@ -250,12 +250,13 @@ textarea.notes{min-height:180px;font:.82rem/1.45 var(--mono)}
 }
 
 /* =================== v2: grafica stile iOS 26 =================== */
-:root{--spring:linear(0,.06,.25 9%,.68 20%,.92 30%,1.02 40%,1.035 47%,1.01 62%,1);--r:14px;
+:root{--spring:linear(0,.3 7%,.62 15%,.84 24%,.96 33%,1.012 43%,1.006 60%,1);--r:14px;
   --glass:color-mix(in srgb,var(--bg) 70%,transparent);--glass-line:color-mix(in srgb,var(--line) 70%,transparent)}
 body{font-feature-settings:"kern","liga";-webkit-font-smoothing:antialiased;letter-spacing:-.003em}
-.btn{border-radius:12px;transition:transform .25s var(--spring),filter .2s}
+.btn{border-radius:12px;transition:transform .2s var(--spring),filter .15s}
 .btn:active,.iconbtn:active,.conv:active,.chip:active,.theme:active,#sendBtn:active,#attachBtn:active,.updbtn:active{transform:scale(.96)}
-.iconbtn,.conv,.chip,.theme,#sendBtn,#attachBtn,.updbtn{transition:transform .25s var(--spring),background .2s}
+.iconbtn,.conv,.chip,.theme,#sendBtn,#attachBtn,.updbtn{transition:transform .2s var(--spring),background .15s}
+.btn:active,.iconbtn:active,.conv:active,.chip:active,.theme:active,#sendBtn:active,#attachBtn:active,.updbtn:active{transition-duration:.05s}
 input,select,textarea{border-radius:12px}
 /* barre in vetro: i messaggi scorrono sotto */
 #chat{position:relative}
@@ -281,8 +282,8 @@ input,select,textarea{border-radius:12px}
 .tool{border-radius:12px;border-color:var(--glass-line)}
 .code{border-radius:12px}
 .note{border-radius:12px}
-.anim{animation:popin .42s var(--spring) both}
-@keyframes popin{from{opacity:0;transform:translateY(10px) scale(.985)}}
+.anim{animation:popin .26s var(--spring) both}
+@keyframes popin{from{opacity:0;transform:translateY(6px)}}
 /* indicatore "sta scrivendo" e cursore */
 .dots{display:inline-flex;gap:4px;align-items:center;padding:4px 0}
 .dots i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:dot 1.2s ease-in-out infinite}
@@ -294,11 +295,11 @@ input,select,textarea{border-radius:12px}
 .tk-k{color:#7a2f8f}.tk-s{color:#2c6631}.tk-n{color:#8f4a0a}.tk-c{color:#5a6570;font-style:italic}.tk-f{color:#1d5a85}
 .dark .tk-k{color:#d29bea}.dark .tk-s{color:#8fd19a}.dark .tk-n{color:#f0b072}.dark .tk-c{color:#8d9aa6}.dark .tk-f{color:#7db9e8}
 /* barra laterale e finestre con la molla */
-#side{transition:transform .5s var(--spring)!important}
+#side{transition:transform .3s var(--spring)!important}
 dialog{border-radius:22px;border:.5px solid var(--glass-line)}
-dialog[open]{animation:dlgin .45s var(--spring)}
+dialog[open]{animation:dlgin .24s var(--spring)}
 dialog::backdrop{background:rgba(0,0,0,.3);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
-@keyframes dlgin{from{opacity:0;transform:scale(.94)}}
+@keyframes dlgin{from{opacity:0;transform:scale(.97)}}
 @media (max-width:860px){
   #side{border-radius:0 22px 22px 0;box-shadow:8px 0 40px rgba(0,0,0,.18)}
   #app.open #scrim{-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
@@ -306,15 +307,15 @@ dialog::backdrop{background:rgba(0,0,0,.3);-webkit-backdrop-filter:blur(4px);bac
   .dlg{max-height:94dvh}
   .dlg header::before{content:"";position:absolute;left:50%;top:6px;width:36px;height:5px;border-radius:3px;background:var(--line);transform:translateX(-50%)}
   .dlg header{position:relative;padding-top:18px}
-  dialog[open]{animation:sheetin .5s var(--spring)}
+  dialog[open]{animation:sheetin .32s var(--spring)}
   @keyframes sheetin{from{transform:translateY(100%)}}
   .top{position:fixed}   /* fissa sul telefono: così iOS 26 non sfoca la parte alta */
 }
 /* passaggio animato tra schermate */
-::view-transition-old(root){animation:vtout .22s ease-in both}
-::view-transition-new(root){animation:vtin .38s var(--spring) both}
+::view-transition-old(root){animation:vtout .14s ease-in both}
+::view-transition-new(root){animation:vtin .24s var(--spring) both}
 @keyframes vtout{to{opacity:0}}
-@keyframes vtin{from{opacity:0;transform:translateX(18px)}}
+@keyframes vtin{from{opacity:0;transform:translateX(10px)}}
 @media (prefers-reduced-motion:reduce){*,::view-transition-new(root),::view-transition-old(root){animation:none!important;transition:none!important}}
 </style>
 </head>
