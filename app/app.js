@@ -6,7 +6,8 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 const touch = matchMedia("(pointer:coarse)").matches;
 
 const S = { convs: [], cur: null, msgs: [], live: null, es: null, files: [], browse: "", tbrowse: "",
-  tab: localStorage.getItem("cantiere-tab") || "chat", teams: [], team: null, poll: 0 };
+  tab: localStorage.getItem("cantiere-tab") || "chat", teams: [], team: null, poll: 0,
+  teamView: localStorage.getItem("cantiere-teamview") || "log" };
 
 /* ---------- collegamento col NAS: avviso in alto e nuovi tentativi ---------- */
 const NET = { down: false, timer: 0, okTimer: 0, onBack: null, why: "" };
@@ -505,17 +506,21 @@ async function loadTeam(id, quiet) {
   const sel = $("#toSel"), keep = sel.value;
   sel.innerHTML = t.members.map(m => `<option value="${esc(m.role)}">a: ${esc(m.role)}</option>`).join("");
   if (t.members.some(m => m.role === keep)) sel.value = keep;
-  if (changed) { renderTeam(); if (stick) toBottom(); }
+  if (changed || S.teamView === "office") { renderTeam(); if (stick && S.teamView !== "office") toBottom(); }   // l'ufficio si aggiorna sempre (tempi)
   renderTeamList();
   S.poll = setTimeout(() => loadTeam(id, true), t.running ? 2500 : 15000);
 }
-function renderTeam() {
-  const t = S.team, box = $("#msgs");
-  const oldChips = box.querySelector(".members"), keepX = oldChips && oldChips.dataset.team === t.id ? oldChips.scrollLeft : 0;
-  box.innerHTML = "";
-  const color = {}; t.members.forEach((m, i) => color[m.role] = "c" + (i % 6));
+function teamColors(t) { const c = {}; t.members.forEach((m, i) => c[m.role] = "c" + (i % 6)); return c; }
+function chipsEl(t, color, lastWork) {
+  const box = $("#msgs"), oldChips = box.querySelector(".members"), keepX = oldChips && oldChips.dataset.team === t.id ? oldChips.scrollLeft : 0;
   const chips = el("div", "members");
-  const lastWork = {}; t.timeline.forEach(it => { if (it.kind === "work") lastWork[it.role] = it; });
+  const sw = el("div", "vsw");
+  for (const [v, lbl] of [["log", "Cronologia"], ["office", "Ufficio"]]) {
+    const b = el("button", "", lbl); b.type = "button"; b.setAttribute("aria-pressed", S.teamView === v ? "true" : "false");
+    b.onclick = () => { if (S.teamView === v) return; S.teamView = v; localStorage.setItem("cantiere-teamview", v); $("#msgs").innerHTML = ""; renderTeam(); if (v === "log") toBottom(); };
+    sw.append(b);
+  }
+  chips.append(sw);
   t.members.forEach(m => {
     const c = el("button", "chip " + color[m.role]); c.type = "button";
     c.innerHTML = `${m.running ? '<span class="spin"></span>' : ""}<b>${esc(m.role)}</b>${!m.running && lastWork[m.role] && lastWork[m.role].denied ? '<span class="warn" title="Bloccato da un permesso">!</span>' : ""}<span class="q">${esc(MODE_LBL[m.mode] || "")}${m.model ? " · " + esc(MODEL_LBL[m.model]) : ""}${m.queued ? ` · ${m.queued} in coda` : ""}</span>`;
@@ -523,7 +528,17 @@ function renderTeam() {
     chips.append(c);
   });
   chips.dataset.team = t.id;
-  box.append(chips); chips.scrollLeft = keepX;   // il ridisegno automatico non deve riportare la riga all'inizio
+  requestAnimationFrame(() => chips.scrollLeft = keepX);   // il ridisegno automatico non deve riportare la riga all'inizio
+  return chips;
+}
+function renderTeam() {
+  const t = S.team, box = $("#msgs");
+  const color = teamColors(t);
+  const lastWork = {}; t.timeline.forEach(it => { if (it.kind === "work") lastWork[it.role] = it; });
+  if (S.teamView === "office") return renderOffice(t, color, lastWork);
+  const chips = chipsEl(t, color, lastWork);
+  box.innerHTML = "";
+  box.append(chips);
   if (!t.timeline.length) box.append(el("div", "empty", `<p>Scrivi al team: il messaggio va a <b>${esc(t.members[0].role)}</b> (o a chi scegli in basso). I membri si passano il lavoro da soli e tu vedi qui tutto lo scambio. Tocca un membro per aprire la sua chat completa.</p>`));
   const conv = {}; t.members.forEach(m => conv[m.role] = m.id);
   let idx = 0;
@@ -558,6 +573,76 @@ function renderTeam() {
       : `<span><span class="role">${esc(m.role)}</span>: messaggio in coda (aspetta un posto libero)</span>`));
   SEEN.fresh = false;
 }
+
+/* ---------- vista Ufficio: ogni membro alla sua scrivania, animato secondo quello che sta facendo ---------- */
+const DESK_SVG = `<svg viewBox="0 0 160 100" aria-hidden="true">
+  <rect class="wood" x="18" y="70" width="128" height="6" rx="3"/><rect class="wood" x="26" y="76" width="5" height="20" rx="2"/><rect class="wood" x="134" y="76" width="5" height="20" rx="2"/>
+  <rect class="wood" x="30" y="80" width="30" height="4" rx="2" opacity=".7"/><rect class="wood" x="43" y="84" width="4" height="12" opacity=".7"/>
+  <g class="head"><circle class="skin" cx="45" cy="34" r="10"/><path class="body" d="M37 31a9 9 0 0 1 17-3" stroke-width="0" opacity=".85"/></g>
+  <rect class="body" x="35" y="45" width="21" height="28" rx="9"/>
+  <path class="arm" d="M52 54 L74 64" stroke-width="5" stroke-linecap="round" fill="none"/>
+  <rect class="kb" x="68" y="65" width="28" height="4" rx="1.5"/>
+  <rect class="mon" x="96" y="34" width="44" height="31" rx="3"/><rect class="scr" x="99" y="37" width="38" height="25" rx="1.5"/><rect class="mon" x="115" y="65" width="6" height="5"/>
+  <rect class="ln" x="102" y="41" width="26" height="2.5" rx="1"/><rect class="ln" x="102" y="46" width="18" height="2.5" rx="1"/><rect class="ln" x="102" y="51" width="30" height="2.5" rx="1"/><rect class="ln" x="102" y="56" width="14" height="2.5" rx="1"/>
+  <text class="prompt" x="103" y="53">&gt;_</text>
+  <g class="lens"><circle cx="114" cy="48" r="5"/><path d="M118 52l5 5"/></g>
+  <rect class="paper" x="56" y="40" width="13" height="16" rx="1.5" transform="rotate(-12 62 48)"/>
+  <text class="zz" x="56" y="22">z z</text>
+</svg><div class="bub"></div><div class="plane">✈️</div>`;
+const READ_TOOLS = /^(Read|Glob|Grep|NotebookRead|LS)$/, EDIT_TOOLS = /^(Write|Edit|MultiEdit|NotebookEdit)$/;
+function deskState(m, last) {
+  const a = m.activity;
+  if (!m.running) {
+    if (m.queued) return ["queued", `In coda: ${m.queued} messagg${m.queued > 1 ? "i" : "io"} da leggere`, "⏳"];
+    if (last && last.denied && last.denied.length) return ["blocked", "Bloccato da un permesso: tocca per sistemare", "!"];
+    return ["idle", "In pausa", ""];
+  }
+  if (!a || a.kind === "think") return ["think", "Ragiona…", "dots"];
+  if (a.kind === "write") return ["write", "Scrive: " + (a.text || "…"), "dots"];
+  if (a.kind === "message") return ["message", `Scrive a «${a.to}»`, "→ " + a.to];
+  const t = a.tool || "", s = a.text || "";
+  if (READ_TOOLS.test(t)) return ["read", "Legge " + s, ""];
+  if (EDIT_TOOLS.test(t)) return ["edit", (t === "Write" ? "Scrive " : "Modifica ") + s, ""];
+  if (/^Web/.test(t)) return ["web", "Sul web: " + s, ""];
+  if (t === "TodoWrite") return ["plan", "Organizza il lavoro", ""];
+  if (t === "Task" || t === "Agent") return ["command", "Sotto-agente: " + s, ""];
+  return ["command", "Comando: " + s, ""];
+}
+function renderOffice(t, color, lastWork) {
+  const box = $("#msgs");
+  let off = box.querySelector(".office");
+  const chips = chipsEl(t, color, lastWork);
+  if (!off || off.dataset.team !== t.id) {
+    box.innerHTML = ""; box.append(chips);
+    box.append(el("div", "office-head"));
+    off = el("div", "office"); off.dataset.team = t.id; box.append(off);
+  } else box.querySelector(".members").replaceWith(chips);
+  const working = t.members.filter(m => m.running).length;
+  box.querySelector(".office-head").textContent = working ? `${working} al lavoro · tocca una scrivania per i dettagli` : "Tutti in pausa · scrivi al team per farli lavorare";
+  const incoming = new Set(t.members.filter(m => m.activity && m.activity.kind === "message").map(m => m.activity.to));
+  const ids = new Set();
+  t.members.forEach(m => {
+    ids.add(m.id);
+    let d = off.querySelector(`[data-id="${m.id}"]`);
+    if (!d) {
+      d = el("button", "desk " + color[m.role]); d.type = "button"; d.dataset.id = m.id;
+      d.innerHTML = DESK_SVG + `<div class="nm"><span></span><span class="tm"></span></div><div class="st"></div>`;
+      d.onclick = () => { const mm = S.team.members.find(x => x.id === m.id); if (mm) openConvDlg(mm, lastWork[mm.role] && !mm.running ? lastWork[mm.role].denied : null); };
+      off.append(d);
+    }
+    const [state, label, bub] = deskState(m, lastWork[m.role]);
+    const cls = `desk ${color[m.role]} ${state}${incoming.has(m.role) ? " incoming" : ""}`;
+    if (d.className !== cls) d.className = cls;   // cambio la classe solo se cambia lo stato: le animazioni non ripartono
+    d.querySelector(".nm span").textContent = m.role;
+    const since = m.activity && m.activity.since ? Math.max(0, Math.round(Date.now() / 1000 - m.activity.since)) : null;
+    d.querySelector(".tm").textContent = since == null ? "" : since >= 60 ? `${Math.floor(since / 60)} min` : `${since} s`;
+    d.querySelector(".st").textContent = label;
+    const b = d.querySelector(".bub"), html = bub === "dots" ? "<i></i><i></i><i></i>" : esc(bub);
+    if (b.dataset.v !== html) { b.innerHTML = html; b.dataset.v = html; }
+  });
+  off.querySelectorAll(".desk").forEach(d => { if (!ids.has(d.dataset.id)) d.remove(); });
+}
+
 async function teamSend() {
   const text = $("#input").value.trim(); if (!text) return;
   $("#sendBtn").disabled = true;

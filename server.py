@@ -48,7 +48,7 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-APP_VERSION = "2.9"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
+APP_VERSION = "3.0"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
 BASE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE, "app")
 DB_PATH = os.path.join(BASE, "cantiere.db")
@@ -496,11 +496,30 @@ Regole:
 """
 
 
+def run_activity(cid):
+    """Cosa sta facendo adesso un membro (per la vista Ufficio): ultimo blocco della risposta in corso."""
+    r = RUNS.get(cid)
+    if not r:
+        return None
+    act = {"since": int(r.started), "kind": "think", "text": ""}
+    blocks = list(r.blocks)
+    if blocks:
+        b = blocks[-1]
+        if b["type"] == "tool" and b.get("status") == "run":
+            act.update(kind="tool", tool=b.get("name") or "", text=str(b.get("summary") or "")[:120])
+            m = re.search(r"team\.py\s+invia\s+([\w-]+)", (b.get("detail") or "") + " " + (b.get("summary") or ""))
+            if m:
+                act.update(kind="message", to=m.group(1))
+        elif b["type"] == "text":
+            act.update(kind="write", text=b.get("text", "")[-120:].strip())
+    return act
+
+
 def team_out(t, full=False):
     t = dict(t)
     ms = team_members(t["id"])
     queued = {r["conv_id"]: r["n"] for r in q("SELECT conv_id, COUNT(*) AS n FROM inbox GROUP BY conv_id")}
-    t["members"] = [dict(conv_out(m), queued=queued.get(m["id"], 0)) for m in ms]
+    t["members"] = [dict(conv_out(m), queued=queued.get(m["id"], 0), activity=run_activity(m["id"])) for m in ms]
     t["running"] = any(m["running"] or m["queued"] for m in t["members"])
     if full:
         ids = [m["id"] for m in ms]

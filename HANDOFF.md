@@ -53,3 +53,8 @@ ResizeObserver), animazioni a molla (`--spring`, CSS `linear()`), finestre come 
 passaggio tra schermate con View Transitions (`go()`), comparsa animata solo degli elementi nuovi (`animNew`),
 indicatore a puntini e cursore durante la scrittura, evidenziatore del codice `highlight()` senza librerie
 (colori con contrasto ≥ 4,5:1 su tutti i temi). `prefers-reduced-motion` spegne le animazioni.
+- Vista Ufficio (v3.0): interruttore Cronologia/Ufficio nella riga dei membri (`S.teamView`, salvato sul
+  dispositivo). Il server aggiunge a ogni membro `activity` (`run_activity`: ultimo blocco della risposta in
+  corso → pensa / scrive / strumento / messaggio a un collega). `renderOffice` aggiorna le scrivanie senza
+  ridisegnarle (le animazioni CSS non ripartono); stati: idle, think, write, read, edit, command, web, plan,
+  message (aeroplanino, la scrivania del destinatario si illumina), queued, blocked.
