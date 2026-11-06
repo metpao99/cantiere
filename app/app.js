@@ -91,7 +91,7 @@ function renderThemes() {
     box.append(b);
   }
   $("#schemeSel").value = localStorage.getItem("cantiere-scheme") || "auto";
-  $("#sbSel").value = localStorage.getItem("cantiere-statusbar") || "auto";
+  $("#sbSel").value = localStorage.getItem("cantiere-statusbar") === "glass" ? "glass" : "auto";
 }
 applyTheme();
 darkMQ.addEventListener("change", () => { applyTheme(); renderThemes(); });
@@ -864,7 +864,7 @@ function init() {
   $("#newForm").addEventListener("submit", createConv);
   $("#settingsBtn").onclick = openSettings;
   initTeam(); renderTabs();
-  $("#sbSel").onchange = () => { localStorage.setItem("cantiere-statusbar", $("#sbSel").value); toast("Chiudi e riapri l'app per vedere la barra di stato nuova"); };
+  $("#sbSel").onchange = () => { localStorage.setItem("cantiere-statusbar", $("#sbSel").value); toast("iOS la cambia solo riaggiungendo l'app alla Home: vedi la spiegazione qui sopra"); };
   $("#schemeSel").onchange = () => { localStorage.setItem("cantiere-scheme", $("#schemeSel").value); applyTheme(); renderThemes(); };
   initEdgeSwipe(); initConvDlg();
   $("#tokenSave").onclick = saveToken;

@@ -20,7 +20,8 @@
     if (q) localStorage.setItem("cantiere-statusbar", { vetro: "glass", piena: "solid", auto: "auto" }[q]);
     var m = localStorage.getItem("cantiere-statusbar") || "auto", s = localStorage.getItem("cantiere-scheme") || "auto";
     var dark = s === "dark" || (s === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
-    if (m === "glass" || (m === "auto" && dark)) sb = "black-translucent";
+    /* in vetro solo se scelto esplicitamente: iOS 26-27 lascia una fascia vuota in fondo (bug WebKit 301994) */
+    if (m === "glass") sb = "black-translucent";
   } catch (e) {}
   document.write('<meta name="apple-mobile-web-app-status-bar-style" content="' + sb + '">');
 })();
@@ -494,8 +495,8 @@ body.kb .composer{padding-bottom:7px}
     <div><button type="button" class="btn ghost" id="notesSave">Salva istruzioni</button></div>
     <div class="f" style="font-size:.85rem;font-weight:600">Tema <span class="muted" style="font-weight:400">(vale per questo dispositivo)</span></div>
     <div class="themes" id="themes"></div>
-    <label class="f">Barra di stato (ora, rete, batteria) <span class="h">In vetro l'app continua sotto l'ora, ma iOS la scrive sempre in bianco: leggibile solo col tema scuro. iOS la applica quando aggiungi l'app alla Home: se riaprendo non cambia, apri in Safari l'indirizzo dell'app con <code>?barra=vetro</code> in fondo e aggiungila di nuovo alla Home.</span>
-      <select id="sbSel"><option value="auto">Automatica: in vetro col tema scuro</option><option value="glass">Sempre in vetro</option><option value="solid">Sempre piena</option></select></label>
+    <label class="f">Barra di stato (ora, rete, batteria) <span class="h">In vetro l'app continua sotto l'ora, ma iOS 26–27 lascia una fascia vuota in fondo e sfuma il titolo (difetto di iOS). iOS la applica solo quando aggiungi l'app alla Home: per cambiarla apri in Safari l'indirizzo dell'app con <code>?barra=piena</code> o <code>?barra=vetro</code> in fondo e aggiungila di nuovo alla Home.</span>
+      <select id="sbSel"><option value="auto">Piena (consigliata)</option><option value="glass">In vetro (iOS lascia una fascia vuota in fondo)</option></select></label>
     <label class="f">Aspetto<select id="schemeSel"><option value="auto">Automatico (come il telefono)</option><option value="light">Sempre chiaro</option><option value="dark">Sempre scuro</option></select></label>
     <div class="status" id="updStatus">…</div>
     <div class="muted small" id="verLine">Versione …</div>
