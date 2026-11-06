@@ -320,6 +320,14 @@ dialog::backdrop{background:rgba(0,0,0,.3);-webkit-backdrop-filter:blur(4px);bac
 ::view-transition-new(root){animation:vtin .24s var(--spring) both}
 @keyframes vtout{to{opacity:0}}
 @keyframes vtin{from{opacity:0;transform:translateX(10px)}}
+/* v2.4: in alto il vetro è più coprente (l'ora e il titolo restano leggibili anche con la barra di stato
+   in vetro), in basso la casella scende verso la barra home come in Messaggi */
+.top{background:linear-gradient(to bottom,color-mix(in srgb,var(--bg) 94%,transparent),color-mix(in srgb,var(--bg) 82%,transparent));
+  -webkit-backdrop-filter:blur(30px) saturate(160%);backdrop-filter:blur(30px) saturate(160%)}
+.members{background:color-mix(in srgb,var(--bg) 84%,transparent)}
+.composer{padding-bottom:max(8px,calc(env(safe-area-inset-bottom) - 14px));padding-top:7px}
+body.kb .composer{padding-bottom:7px}
+.opts{margin-bottom:5px}
 @media (prefers-reduced-motion:reduce){*,::view-transition-new(root),::view-transition-old(root){animation:none!important;transition:none!important}}
 </style>
 </head>
