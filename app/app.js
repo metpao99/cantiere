@@ -320,7 +320,16 @@ function ago(t) {
   return d.toLocaleDateString("it-IT", { day: "numeric", month: "short" });
 }
 function renderTabs() {
-  document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === S.tab ? "true" : "false"));
+  const busy = { chat: S.convs.some(c => c.running), team: S.teams.some(t => t.running) };
+  document.querySelectorAll(".tabs button").forEach(b => {
+    b.setAttribute("aria-selected", b.dataset.tab === S.tab ? "true" : "false");
+    let d = b.querySelector(".dot");
+    if (busy[b.dataset.tab] && !d) { d = el("span", "dot"); d.title = "Qualcuno sta lavorando"; b.append(d); }
+    else if (!busy[b.dataset.tab] && d) d.remove();
+  });
+  /* sul telefono il menu è chiuso: il pallino compare anche sul pulsante ≡ */
+  const mb = $("#menuBtn"), any = busy.chat || busy.team, md = mb.querySelector(".dot");
+  if (any && !md) mb.append(el("span", "dot")); else if (!any && md) md.remove();
   $("#newLbl").textContent = S.tab === "team" ? "Nuovo team" : "Nuova conversazione";
 }
 function setTab(t) { S.tab = t; localStorage.setItem("cantiere-tab", t); renderTabs(); renderList(); if (t === "team") loadTeams().catch(() => {}); if (!S.cur && !S.team) renderMsgs(); }
@@ -337,7 +346,7 @@ function renderList() {
     nav.append(b);
   }
 }
-async function loadConvs() { S.convs = (await api("/api/convs")).convs; renderList(); if (S.tab === "team") loadTeams().catch(() => {}); }
+async function loadConvs() { S.convs = (await api("/api/convs")).convs; renderList(); loadTeams().catch(() => {}); }
 async function loadConv(id, keepScroll) {
   try {
     const d = await api(`/api/convs/${id}`);
@@ -481,7 +490,15 @@ function composerFor(kind) {
   ["#modeSel", "#modelSel", "#effortSel"].forEach(s => $(s).hidden = team);
   $("#input").placeholder = team ? "Scrivi al team…" : "";
 }
-async function loadTeams() { S.teams = (await api("/api/teams")).teams; if (S.tab === "team") renderTeamList(); }
+async function loadTeams() { S.teams = (await api("/api/teams")).teams; if (S.tab === "team") renderTeamList(); renderTabs(); }
+/* le liste si aggiornano da sole: ogni 5 s se qualcuno lavora, se no ogni 20 s (solo con l'app in primo piano) */
+function listLoop() {
+  const busy = S.convs.some(c => c.running) || S.teams.some(t => t.running);
+  setTimeout(async () => {
+    if (document.visibilityState === "visible" && !$("#app").hidden && !NET.down) { try { await loadConvs(); } catch {} }
+    listLoop();
+  }, busy ? 5000 : 20000);
+}
 function renderTeamList() {
   const nav = $("#convList"); nav.innerHTML = "";
   if (!S.teams.length) { const p = el("p", "muted small", "Nessun team. Un team è un gruppo di sessioni di Claude che si passano il lavoro."); p.style.padding = "4px 10px"; nav.append(p); }
@@ -916,6 +933,7 @@ const closeSide = () => $("#app").classList.remove("open");
 async function start() {
   $("#login").hidden = true; $("#app").hidden = false;
   try { await loadConvs(); } catch { return; }
+  if (!S.listLoop) { S.listLoop = true; listLoop(); }
   route();
   notifyUpdate();
 }
