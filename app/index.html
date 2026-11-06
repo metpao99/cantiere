@@ -23,7 +23,6 @@
     if (m === "glass" || (m === "auto" && dark)) sb = "black-translucent";
   } catch (e) {}
   document.write('<meta name="apple-mobile-web-app-status-bar-style" content="' + sb + '">');
-  if (sb === "black-translucent") document.documentElement.classList.add("sb-glass");
 })();
 </script>
 <meta name="apple-mobile-web-app-title" content="Cantiere">
@@ -334,7 +333,8 @@ body.kb .composer{padding-bottom:7px}
 html,body{height:100vh}
 @supports (height:100dvh){html,body{height:100dvh}}
 /* barra di stato in vetro: iOS 26 sfuma tutto quello che sta appena sotto l'orologio, quindi il titolo scende un po' */
-.sb-glass .top{padding-top:calc(env(safe-area-inset-top) + 18px)}
+/* (con la barra piena il margine di sicurezza in alto è 0, quindi lì non cambia nulla) */
+.top{padding-top:calc(env(safe-area-inset-top) * 1.3 + 6px)}
 @media (prefers-reduced-motion:reduce){*,::view-transition-new(root),::view-transition-old(root){animation:none!important;transition:none!important}}
 </style>
 </head>
