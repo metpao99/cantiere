@@ -163,6 +163,13 @@ body.kb .composer{padding-bottom:8px}
 .dlg footer{flex-wrap:wrap}
 .chip .warn{color:var(--warn);font-weight:700}
 .note .btn{margin-top:6px;padding:6px 10px;font-size:.85rem}
+/* ---- avviso di collegamento ---- */
+#net{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 8px);transform:translateX(-50%);z-index:120;display:flex;gap:8px;align-items:center;
+  max-width:calc(100vw - 24px);padding:8px 14px;border-radius:99px;font-size:.88rem;font-weight:600;box-shadow:0 4px 18px rgba(0,0,0,.25);
+  background:var(--bad);color:var(--bg)}
+#net.ok{background:var(--accent);color:var(--accent-fg)}
+#net button{border:0;border-radius:99px;padding:3px 10px;font-size:.8rem;font-weight:700;background:var(--bg);color:var(--fg)}
+#net .spin{border-color:rgba(255,255,255,.35);border-top-color:currentColor}
 /* ---- temi ---- */
 .themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}
 .theme{display:flex;flex-direction:column;align-items:center;gap:6px;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:8px 6px;font-size:.82rem;font-weight:600}
@@ -233,6 +240,7 @@ textarea.notes{min-height:180px;font:.82rem/1.45 var(--mono)}
 </head>
 <body>
 
+<div id="net" role="status" aria-live="polite" hidden></div>
 <div id="login" hidden>
   <form id="loginForm">
     <h1>Cantiere</h1>

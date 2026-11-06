@@ -8,10 +8,56 @@ const touch = matchMedia("(pointer:coarse)").matches;
 const S = { convs: [], cur: null, msgs: [], live: null, es: null, files: [], browse: "", tbrowse: "",
   tab: localStorage.getItem("cantiere-tab") || "chat", teams: [], team: null, poll: 0 };
 
+/* ---------- collegamento col NAS: avviso in alto e nuovi tentativi ---------- */
+const NET = { down: false, timer: 0, okTimer: 0, onBack: null, why: "" };
+function netShow() {
+  const n = $("#net"); clearTimeout(NET.okTimer);
+  n.className = ""; n.hidden = false;
+  n.innerHTML = `<span class="spin"></span><span>${esc(NET.why)} · riprovo…</span>`;
+  const b = el("button", "", "Riprova"); b.type = "button"; b.onclick = () => ping(true); n.append(b);
+}
+function setDown(why) {
+  NET.why = navigator.onLine === false ? "Il telefono è senza rete" : why || "Non collegato al NAS";
+  if (!NET.down) { NET.down = true; }
+  netShow(); schedulePing(4000);
+}
+function setUp() {
+  if (!NET.down) return;
+  NET.down = false;
+  const n = $("#net"); n.className = "ok"; n.textContent = "Di nuovo collegato"; n.hidden = false;
+  NET.okTimer = setTimeout(() => n.hidden = true, 2000);
+  const f = NET.onBack; NET.onBack = null;
+  if (f) f(); else if (!$("#app").hidden) refreshAll();
+}
+function schedulePing(ms) { clearTimeout(NET.timer); NET.timer = setTimeout(() => ping(), ms); }
+async function ping(manual) {
+  if (document.visibilityState !== "visible" && !manual) return schedulePing(15000);
+  try {
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 8000);
+    const r = await fetch("/api/state", { credentials: "same-origin", cache: "no-store", signal: ctl.signal });
+    clearTimeout(to);
+    if (r.status >= 500) throw new Error();
+    const s = await r.json();   // se risponde qualcos'altro (es. pagina d'errore) non è il Cantiere
+    setUp(); schedulePing(20000);
+    return s;
+  } catch { setDown(NET.why && NET.down ? NET.why : "Il NAS non risponde (spento o fuori rete?)"); }
+}
+function refreshAll() {
+  loadConvs().catch(() => {}); notifyUpdate();
+  if (S.team) loadTeam(S.team.id, true);
+  if (S.cur) { closeStream(); S.live = null; loadConv(S.cur.id, true); }
+}
+addEventListener("offline", () => setDown("Il telefono è senza rete"));
+addEventListener("online", () => ping(true));
+
 async function api(path, opts = {}) {
   const o = { method: opts.method || "GET", headers: {}, credentials: "same-origin" };
   if (opts.body !== undefined) { o.headers["Content-Type"] = "application/json"; o.body = JSON.stringify(opts.body); }
-  const r = await fetch(path, o);
+  let r;
+  try { r = await fetch(path, o); }
+  catch { setDown("Non collegato al NAS"); throw new Error("NAS non raggiungibile: riprova quando torna il collegamento"); }
+  if (r.status === 502 || r.status === 503 || r.status === 504) { setDown("Il server del Cantiere non risponde"); throw new Error("Il server del Cantiere non risponde"); }
+  setUp();
   let data = {};
   try { data = await r.json(); } catch {}
   if (r.status === 401 && path !== "/api/login") { showLogin(); throw new Error(data.error || "Accedi"); }
@@ -205,7 +251,7 @@ function openStream(id) {
     else if (ev.op === "done" || ev.op === "idle") { closeStream(); S.live = null; loadConv(id, true); loadConvs(); return; }
     scheduleDraw();
   };
-  es.onerror = () => { if (es.readyState === EventSource.CLOSED) { S.es = null; setTimeout(() => S.cur && S.cur.id === id && loadConv(id, true), 2000); } };
+  es.onerror = () => { ping(); if (es.readyState === EventSource.CLOSED) { S.es = null; setTimeout(() => S.cur && S.cur.id === id && loadConv(id, true), 2000); } };
   setBusy(true);
 }
 function setBusy(b) {
@@ -796,6 +842,7 @@ function init() {
   addEventListener("hashchange", route);
   /* tornando sull'app (iPhone la sospende in background) ricarico lo stato */
   document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") ping(true);
     if (document.visibilityState !== "visible" || $("#app").hidden) return;
     loadConvs().catch(() => {});
     notifyUpdate();
@@ -803,9 +850,13 @@ function init() {
     if (S.cur) { closeStream(); S.live = null; loadConv(S.cur.id, true); }
   });
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
-  fetch("/api/state", { credentials: "same-origin" }).then(r => r.json()).then(s => {
+  /* all'apertura: se il NAS non risponde mostro l'avviso e riprovo da solo; appena torna, entro */
+  const boot = async () => {
+    const s = await ping(true);
+    if (!s) { NET.onBack = boot; showLogin(); $("#loginErr").textContent = "In attesa del NAS: entro da solo appena risponde."; return; }
     if (!s.configured) { showLogin(); $("#loginErr").textContent = "Password non ancora impostata: sul NAS lancia python3 imposta-password.py"; }
     else if (s.logged) start(); else showLogin();
-  }).catch(() => { showLogin(); $("#loginErr").textContent = "NAS non raggiungibile"; });
+  };
+  boot();
 }
 init();
