@@ -911,7 +911,7 @@ function initEdgeSwipe() {
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
       sw.dir = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
       if (sw.dir === "v") { sw = null; return; }
-      if (!sw.open) document.querySelectorAll("dialog[open]").forEach(d => d.close());   // dalla finestra "nuovo…" si passa al menu
+      if (!sw.open) { document.querySelectorAll("dialog[open]").forEach(d => d.close()); dropKeyboard(); }   // dalla finestra "nuovo…" si passa al menu
       side.style.transition = "none";
     }
     sw.dx = dx;
@@ -924,7 +924,7 @@ function initEdgeSwipe() {
     const w = side.offsetWidth, d = sw.dx;
     side.style.transition = ""; side.style.transform = "";
     if (sw.open) { if (d < -w * 0.25) closeSide(); }
-    else if (d > Math.min(80, w * 0.3)) $("#app").classList.add("open");
+    else if (d > Math.min(80, w * 0.3)) openSide();
     sw = null;
   };
   document.addEventListener("touchend", end);
@@ -1046,6 +1046,13 @@ function toast(msg, bad) {
   document.body.append(t); setTimeout(() => t.remove(), 4000);
 }
 const closeSide = () => $("#app").classList.remove("open");
+/* con la tastiera aperta iOS sposta in su tutta la pagina: il menu si apriva già scorso (si vedeva solo il fondo) */
+function dropKeyboard() {
+  const a = document.activeElement;
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) a.blur();
+  window.scrollTo(0, 0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0;
+}
+function openSide() { dropKeyboard(); $("#app").classList.add("open"); }
 
 async function start() {
   $("#login").hidden = true; $("#app").hidden = false;
@@ -1116,7 +1123,7 @@ function init() {
     n.addEventListener("touchmove", move, { passive: true });
   }
   $("#logoutBtn").onclick = logout;
-  $("#menuBtn").onclick = () => $("#app").classList.add("open");
+  $("#menuBtn").onclick = openSide;
   $("#scrim").onclick = closeSide;
   $("#msgs").addEventListener("click", e => {
     const b = e.target.closest(".copy"); if (!b) return;
