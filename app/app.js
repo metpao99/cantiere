@@ -486,7 +486,7 @@ const MODEL_LBL = { "": "Modello predefinito", opus: "Opus", sonnet: "Sonnet", h
 const opts = (o, v) => Object.entries(o).map(([k, l]) => `<option value="${k}"${k === v ? " selected" : ""}>${l}</option>`).join("");
 function composerFor(kind) {
   const team = kind === "team";
-  $("#toSel").hidden = !team; $("#attachBtn").hidden = team;
+  $("#toSel").hidden = !team;
   ["#modeSel", "#modelSel", "#effortSel"].forEach(s => $(s).hidden = team);
   $("#input").placeholder = team ? "Scrivi al team…" : "";
 }
@@ -565,6 +565,7 @@ function renderTeam() {
       const me = it.from === "tu", n = el("div", "tl-msg " + (me ? "me" : color[it.from] || "c0"));
       n.innerHTML = `<div class="hd">${me ? "Tu" : `<span class="role ${color[it.from]}">${esc(it.from)}</span>`} → <span class="role ${color[it.role]}">${esc(it.role)}</span></div>`;
       n.append(document.createTextNode(it.text));
+      if (it.files && it.files.length) { const fs = el("div", "files"); it.files.forEach(f => fs.append(el("span", "filechip", esc(f.replace(/^allegati\/\d{8}-\d{6}-/, ""))))); n.append(fs); }
       box.append(animNew(n, "t" + t.id, key));
     } else {
       const n = el("div", "tl-work " + color[it.role]);
@@ -778,11 +779,12 @@ function renderOffice(t, color, lastWork) {
 }
 
 async function teamSend() {
-  const text = $("#input").value.trim(); if (!text) return;
+  const text = $("#input").value.trim(); if (!text && !S.files.length) return;
+  const files = S.files.map(f => ({ name: f.name, data: f.data }));
   $("#sendBtn").disabled = true;
   try {
-    await api(`/api/teams/${S.team.id}/send`, { method: "POST", body: { to: $("#toSel").value, text } });
-    $("#input").value = ""; autosize(); loadTeam(S.team.id);
+    await api(`/api/teams/${S.team.id}/send`, { method: "POST", body: { to: $("#toSel").value, text, files } });
+    $("#input").value = ""; autosize(); S.files = []; renderPending(); loadTeam(S.team.id);
   } catch (e) { toast(e.message); }
   finally { $("#sendBtn").disabled = false; }
 }

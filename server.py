@@ -34,7 +34,7 @@ API (tutte richiedono il login, tranne /api/state e /api/login)
   GET    /api/teams/<id>                 team, membri (stato e coda) e cronologia unica dei messaggi
   PATCH  /api/teams/<id>                 {title?, maxHops?}
   DELETE /api/teams/<id>                 elimina il team e le chat dei membri (i file restano)
-  POST   /api/teams/<id>/send            {to, text} messaggio dell'utente a un membro (azzera il contatore)
+  POST   /api/teams/<id>/send            {to, text, files?:[{name, data}]} messaggio dell'utente a un membro (azzera il contatore)
   POST   /api/teams/<id>/stop            ferma tutti i membri e svuota la coda
 Per i membri dei team (solo con la chiave X-Cantiere-Key che il server dà a ogni risposta in corso):
   GET    /api/agent/team                 chi sono e chi c'è nel team
@@ -48,7 +48,7 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-APP_VERSION = "3.3"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
+APP_VERSION = "3.4"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
 BASE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE, "app")
 DB_PATH = os.path.join(BASE, "cantiere.db")
@@ -115,6 +115,8 @@ def db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT, conv_id TEXT NOT NULL, from_role TEXT NOT NULL,
                 text TEXT NOT NULL, created INTEGER NOT NULL);
         """)
+        if "files" not in [r[1] for r in _conn.execute("PRAGMA table_info(inbox)")]:
+            _conn.execute("ALTER TABLE inbox ADD COLUMN files TEXT NOT NULL DEFAULT '[]'")
         _conn.commit()
     return _conn
 
@@ -532,7 +534,8 @@ def team_out(t, full=False):
             text = "\n\n".join(b["text"] for b in blocks if b.get("type") == "text" and b.get("text", "").strip())
             item = {"conv": r["conv_id"], "role": role[r["conv_id"]], "created": r["created"], "text": text}
             if r["role"] == "user":
-                item.update(kind="msg", **{"from": meta.get("from") or "tu"})
+                item.update(kind="msg", files=next((b["files"] for b in blocks if b.get("type") == "files"), []),
+                            **{"from": meta.get("from") or "tu"})
             else:
                 item.update(kind="work", tools=sum(1 for b in blocks if b.get("type") == "tool"),
                             error=meta.get("error"), stopped=meta.get("stopped"), seconds=meta.get("seconds"),
@@ -544,10 +547,31 @@ def team_out(t, full=False):
     return t
 
 
-def deliver(conv, from_role, text):
+def save_files(cwd, files):
+    """Salva gli allegati in <cartella>/allegati/ e restituisce i percorsi relativi."""
+    saved = []
+    if files:
+        adir = os.path.join(cwd, "allegati")
+        os.makedirs(adir, exist_ok=True)
+        for f in files[:10]:
+            name = time.strftime("%Y%m%d-%H%M%S-") + clean_filename(f.get("name"))
+            with open(os.path.join(adir, name), "wb") as out:
+                out.write(base64.b64decode(str(f.get("data") or "")))
+            saved.append("allegati/" + name)
+    return saved
+
+
+def files_note(saved, text):
+    if not saved:
+        return text
+    return ("Ho allegato questi file (percorsi relativi alla cartella corrente; aprili con Read):\n"
+            + "\n".join("- " + x for x in saved) + "\n\n" + (text or "Guarda gli allegati."))
+
+
+def deliver(conv, from_role, text, files=None):
     """Mette il messaggio nella coda del membro; dispatch() lo consegna appena possibile."""
-    q("INSERT INTO inbox (conv_id, from_role, text, created) VALUES (?,?,?,?)",
-      (conv["id"], from_role, text[:30000], int(time.time())))
+    q("INSERT INTO inbox (conv_id, from_role, text, created, files) VALUES (?,?,?,?,?)",
+      (conv["id"], from_role, text[:30000], int(time.time()), json.dumps(files or [])))
     dispatch()
 
 
@@ -568,12 +592,13 @@ def dispatch():
                 continue
             parts = []
             for it in items:
-                blocks = [{"type": "text", "text": it["text"]}]
+                saved = json.loads(it.get("files") or "[]")
+                blocks = [{"type": "text", "text": it["text"]}] + ([{"type": "files", "files": saved}] if saved else [])
                 q("INSERT INTO msgs (conv_id, role, blocks, meta, created) VALUES (?,?,?,?,?)",
                   (cid, "user", json.dumps(blocks, ensure_ascii=False),
                    json.dumps({"from": it["from_role"]}, ensure_ascii=False), it["created"]))
                 head = "Messaggio dall'utente" if it["from_role"] == "tu" else f"Messaggio da «{it['from_role']}» (membro del team)"
-                parts.append(f"{head}:\n{it['text']}")
+                parts.append(f"{head}:\n{files_note(saved, it['text'])}")
             q("UPDATE convs SET updated = ? WHERE id = ?", (int(time.time()), cid))
             run = Run(c, "\n\n---\n\n".join(parts))
             RUNS[cid] = run
@@ -1036,13 +1061,15 @@ class Handler(BaseHTTPRequestHandler):
                         if r:
                             r.stop()
                     return self.send_json(200, {"ok": True})
-                body = self.read_json(limit=256 * 1024)
+                body = self.read_json(limit=40 * 1024 * 1024)
                 text = str(body.get("text") or "").strip()
+                files = body.get("files") or []
                 dest = q("SELECT * FROM convs WHERE team_id = ? AND role = ?", (t["id"], str(body.get("to") or "")), one=True)
-                if not text or not dest:
+                if (not text and not files) or not dest:
                     return self.send_json(400, {"error": "Scrivi un messaggio e scegli a chi mandarlo"})
+                saved = save_files(safe_dir(dest["folder"]), files)
                 q("UPDATE teams SET hops = 0, updated = ? WHERE id = ?", (int(time.time()), t["id"]))
-                deliver(dest, "tu", text)
+                deliver(dest, "tu", text, saved)
                 return self.send_json(200, {"ok": True, "queued": dest["id"] not in RUNS})
             m = re.match(r"^/api/convs/([^/]+)/(send|stop)$", path)
             if m:
@@ -1070,19 +1097,8 @@ class Handler(BaseHTTPRequestHandler):
             if len(RUNS) >= MAX_RUNS:
                 return self.send_json(429, {"error": f"Già {MAX_RUNS} conversazioni al lavoro: aspetta che una finisca"})
             cwd = safe_dir(c["folder"])
-            saved = []
-            if files:
-                adir = os.path.join(cwd, "allegati")
-                os.makedirs(adir, exist_ok=True)
-                for f in files[:10]:
-                    name = time.strftime("%Y%m%d-%H%M%S-") + clean_filename(f.get("name"))
-                    with open(os.path.join(adir, name), "wb") as out:
-                        out.write(base64.b64decode(str(f.get("data") or "")))
-                    saved.append("allegati/" + name)
-            prompt = text
-            if saved:
-                prompt = ("Ho allegato questi file (percorsi relativi alla cartella corrente; aprili con Read):\n"
-                          + "\n".join("- " + s for s in saved) + "\n\n" + (text or "Guarda gli allegati."))
+            saved = save_files(cwd, files)
+            prompt = files_note(saved, text)
             now = int(time.time())
             blocks = [{"type": "text", "text": text}] + ([{"type": "files", "files": saved}] if saved else [])
             q("INSERT INTO msgs (conv_id, role, blocks, created) VALUES (?,?,?,?)",
