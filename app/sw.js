@@ -1,6 +1,6 @@
 // Cache dell'interfaccia per aprirla subito. Le chiamate /api/ vanno sempre al NAS.
 // Quando modifichi i file dell'app, cambia il numero di versione.
-const CACHE = "cantiere-v1";
+const CACHE = "cantiere-v3.5";
 const FILES = ["./", "index.html", "app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener("activate", e => {

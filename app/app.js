@@ -524,7 +524,7 @@ async function loadTeam(id, quiet) {
   sel.innerHTML = t.members.map(m => `<option value="${esc(m.role)}">a: ${esc(m.role)}</option>`).join("");
   if (t.members.some(m => m.role === keep)) sel.value = keep;
   if (changed || S.teamView === "office") { renderTeam(); if (stick && S.teamView !== "office") toBottom(); }   // l'ufficio si aggiorna sempre (tempi)
-  renderTeamList();
+  if (S.tab === "team") renderTeamList();   // se stai guardando le Chat, il team aggiornato non deve rubarti la lista
   S.poll = setTimeout(() => loadTeam(id, true), t.running ? 2500 : 15000);
 }
 function teamColors(t) { const c = {}; t.members.forEach((m, i) => c[m.role] = "c" + (i % 6)); return c; }
