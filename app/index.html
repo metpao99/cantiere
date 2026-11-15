@@ -407,6 +407,7 @@ body.kb .composer{padding-bottom:7px}
           </select>
           <select id="modelSel" aria-label="Modello">
             <option value="">Modello predefinito</option>
+            <option value="fable">Fable</option>
             <option value="opus">Opus</option>
             <option value="sonnet">Sonnet</option>
             <option value="haiku">Haiku</option>
@@ -476,7 +477,7 @@ body.kb .composer{padding-bottom:7px}
     <div class="status warn" id="cdDenied" hidden></div>
     <label class="f" id="cdTitleBox">Nome<input id="cdTitle" autocomplete="off"></label>
     <label class="f">Cosa può fare Claude<select id="cdMode"><option value="plan">Solo piano – legge e propone</option><option value="acceptEdits">Modifica file – niente programmi né test</option><option value="bypassPermissions">Autonomo – file e comandi senza chiedere</option></select></label>
-    <div class="inline"><select id="cdModel" aria-label="Modello"><option value="">Modello predefinito</option><option value="opus">Opus</option><option value="sonnet">Sonnet</option><option value="haiku">Haiku</option></select>
+    <div class="inline"><select id="cdModel" aria-label="Modello"><option value="">Modello predefinito</option><option value="fable">Fable</option><option value="opus">Opus</option><option value="sonnet">Sonnet</option><option value="haiku">Haiku</option></select>
       <select id="cdEffort" aria-label="Effort"><option value="">Effort predefinito</option><option value="low">Effort basso</option><option value="medium">Effort medio</option><option value="high">Effort alto</option><option value="xhigh">Effort molto alto</option><option value="max">Effort massimo</option></select></div>
     <div>
       <div class="f" style="font-size:.85rem;font-weight:600">Cartelle in più <span class="muted" style="font-weight:400">(oltre a <code id="cdOwn"></code>: Claude può leggerle e modificarle)</span></div>

@@ -482,7 +482,7 @@ async function createConv(e) {
 
 /* ---------- team: più sessioni di Claude che si scrivono ---------- */
 const MODE_LBL = { plan: "Solo piano", acceptEdits: "Modifica file", bypassPermissions: "Autonomo" };
-const MODEL_LBL = { "": "Modello predefinito", opus: "Opus", sonnet: "Sonnet", haiku: "Haiku" };
+const MODEL_LBL = { "": "Modello predefinito", fable: "Fable", opus: "Opus", sonnet: "Sonnet", haiku: "Haiku" };
 const opts = (o, v) => Object.entries(o).map(([k, l]) => `<option value="${k}"${k === v ? " selected" : ""}>${l}</option>`).join("");
 function composerFor(kind) {
   const team = kind === "team";

@@ -48,7 +48,7 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-APP_VERSION = "3.5"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
+APP_VERSION = "3.6"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
 BASE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE, "app")
 DB_PATH = os.path.join(BASE, "cantiere.db")
@@ -59,7 +59,7 @@ COOKIE = "cantiere_session"
 SESSION_AGE = 90 * 24 * 3600
 ID_RE = re.compile(r"^[a-f0-9]{12}$")
 MODES = ("plan", "acceptEdits", "bypassPermissions")
-MODELS = ("", "opus", "sonnet", "haiku")
+MODELS = ("", "fable", "opus", "sonnet", "haiku")   # alias di Claude Code (fable = Claude Fable 5.1)
 EFFORTS = ("", "low", "medium", "high", "xhigh", "max")   # "" = predefinito di Claude Code
 MAX_RUNS = int(os.environ.get("CANTIERE_MAX_RUNS", "2"))   # 4 GB di RAM: meglio non esagerare
 RUN_TIMEOUT = 45 * 60
