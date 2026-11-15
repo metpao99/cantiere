@@ -19,6 +19,7 @@ API (tutte richiedono il login, tranne /api/state e /api/login)
   GET    /api/folders?path=rel           sottocartelle (non nascoste) sotto --root
   POST   /api/folders                    {path, name} crea una cartella
   GET    /api/files?path=rel             sottocartelle e file (non nascosti) di una cartella sotto --root
+  GET    /api/docs?path=rel[&path=…]     file .md delle cartelle indicate (i più recenti prima)
   GET    /api/file?path=rel[&raw=1]      contenuto di un file: JSON {text|image|binary} oppure, con raw, i byte (immagini)
   GET    /api/convs                      elenco conversazioni
   POST   /api/convs                      {folder, model, mode, effort} nuova conversazione
@@ -52,7 +53,7 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-APP_VERSION = "3.7"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
+APP_VERSION = "3.9"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
 BASE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE, "app")
 DB_PATH = os.path.join(BASE, "cantiere.db")
@@ -660,6 +661,38 @@ def conv_out(c):
     return c
 
 
+# ---------- documenti .md del progetto ----------
+DOCS_SKIP = {"node_modules", "__pycache__", "@eaDir", "backups", "allegati", "venv", ".venv", "dist", "build"}
+
+
+def find_docs(rels, limit=150):
+    """File .md sotto le cartelle date: 4 livelli, ma solo 2 se si parte dalla home (non scandaglio tutto il NAS)."""
+    root, seen, out = os.path.realpath(ROOT), set(), []
+    for rel in rels:
+        try:
+            base = safe_dir(rel)
+        except ValueError:
+            continue
+        depth = 2 if base == root else 4
+        for cur, dirs, files in os.walk(base):
+            lvl = 0 if cur == base else cur[len(base) + 1:].count(os.sep) + 1
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in DOCS_SKIP] if lvl < depth - 1 else []
+            for f in files:
+                if not f.lower().endswith((".md", ".markdown")) or f.startswith("."):
+                    continue
+                full = os.path.join(cur, f)
+                if full in seen:
+                    continue
+                seen.add(full)
+                try:
+                    st = os.stat(full)
+                except OSError:
+                    continue
+                out.append({"path": rel_of(full), "name": f, "dir": rel_of(cur), "size": st.st_size, "mtime": int(st.st_mtime)})
+    out.sort(key=lambda d: -d["mtime"])
+    return out[:limit]
+
+
 # ---------- limiti d'uso dell'abbonamento ----------
 _usage = {"data": None}
 
@@ -974,6 +1007,8 @@ class Handler(BaseHTTPRequestHandler):
             rel = rel_of(full)
             return self.send_json(200, {"path": rel, "root": ROOT, "dirs": dirs, "files": files,
                                         "parent": None if not rel else os.path.dirname(rel)})
+        if path == "/api/docs":
+            return self.send_json(200, {"docs": find_docs((parse_qs(u.query).get("path") or [""])[:12])})
         if path == "/api/file":
             qs = parse_qs(u.query)
             try:

@@ -355,7 +355,7 @@ async function loadConv(id, keepScroll) {
     S.cur = d.conv; S.msgs = d.msgs; S.team = null; stopPoll(); composerFor("chat");
     $("#backTeam").hidden = !d.conv.team_id; $("#backTeam").dataset.team = d.conv.team_id || "";
     $("#convTitle").textContent = d.conv.title; $("#convFolder").textContent = (d.conv.team_id ? "membro del team · " : "") + "~/" + d.conv.folder;
-    $("#moreBtn").hidden = false; $("#filesBtn").hidden = false; $("#composer").hidden = false;
+    $("#moreBtn").hidden = false; $("#filesBtn").hidden = false; $("#docsBtn").hidden = false; $("#composer").hidden = false;
     $("#modeSel").value = d.conv.mode; $("#modelSel").value = d.conv.model; $("#effortSel").value = d.conv.effort || ""; paintEffort(); paintMode();
     if (d.conv.running) { if (!S.es) openStream(id); else S.live = S.live || { blocks: [] }; }
     else { closeStream(); S.live = null; setBusy(false); }
@@ -377,7 +377,7 @@ function route() {
   if (!id) {
     S.cur = null; S.msgs = [];
     $("#convTitle").textContent = "Cantiere"; $("#convFolder").textContent = "";
-    $("#moreBtn").hidden = true; $("#filesBtn").hidden = true; $("#composer").hidden = true; renderMsgs(); renderList(); return;
+    $("#moreBtn").hidden = true; $("#filesBtn").hidden = true; $("#docsBtn").hidden = true; $("#composer").hidden = true; renderMsgs(); renderList(); return;
   }
   return loadConv(id);
 }
@@ -465,7 +465,7 @@ async function browse(path, t) {
   } catch (e) { toast(e.message); }
 }
 /* ---------- visualizzatore dei file (elenco della cartella della chat o del team, lettura di un file) ---------- */
-const FV = { path: "", file: null };
+const FV = { path: "", file: null, docs: false };
 const fmtSize = n => n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(n < 10240 ? 1 : 0) + " KB" : (n / 1048576).toFixed(1) + " MB";
 const CODE_EXT = /\.(js|mjs|py|sh|json|css|html?|md|txt|csv|yml|yaml|toml|ini|conf|cfg|sql|xml|svg|webmanifest|log|env|txt)$/i;
 function fvOpen() {
@@ -475,7 +475,31 @@ function fvOpen() {
   FV.file = null;
   fvList(FV.path); $("#filesDlg").showModal();
 }
+/* documenti .md del progetto: cartella della chat (o del team e dei suoi membri) e cartelle in più */
+function docRoots() {
+  const r = [];
+  if (S.team) { r.push(S.team.folder); S.team.members.forEach(m => { r.push(m.folder); (m.dirs || []).forEach(d => r.push(d)); }); }
+  else if (S.cur) { r.push(S.cur.folder); (S.cur.dirs || []).forEach(d => r.push(d)); }
+  return [...new Set(r)];
+}
+function docsOpen() { FV.file = null; docsList(); $("#filesDlg").showModal(); }
+async function docsList() {
+  FV.docs = true; FV.file = null;
+  $("#fvFile").hidden = true; $("#fvList").hidden = false; $("#fvHead").textContent = "Documenti";
+  const roots = docRoots();
+  $("#fvCrumb").textContent = roots.map(r => "~/" + r).join(" · ");
+  const box = $("#fvList"); box.innerHTML = "";
+  try {
+    const d = await api("/api/docs?" + roots.map(r => "path=" + encodeURIComponent(r)).join("&"));
+    d.docs.forEach(f => {
+      const b = el("button", "doc", ICON.file + `<span class="nm"><b>${esc(f.name)}</b><small>~/${esc(f.dir)}</small></span><span class="sz">${ago(f.mtime)}</span>`);
+      b.type = "button"; b.onclick = () => fvShow(f.path); box.append(b);
+    });
+    if (!d.docs.length) { const p = el("p", "muted small", "Nessun file .md nelle cartelle del progetto."); p.style.padding = "8px 12px"; box.append(p); }
+  } catch (e) { toast(e.message); }
+}
 async function fvList(path) {
+  FV.docs = false;
   $("#fvFile").hidden = true; $("#fvList").hidden = false; FV.file = null;
   $("#fvHead").textContent = "File";
   try {
@@ -510,9 +534,10 @@ async function fvShow(path) {
   } catch (e) { toast(e.message); }
 }
 function initFiles() {
-  $("#filesBtn").onclick = fvOpen;
-  $("#fvBack").onclick = () => fvList(FV.path);
-  $("#fvReload").onclick = () => FV.file ? fvShow(FV.file) : fvList(FV.path);
+  $("#filesBtn").onclick = () => { FV.docs = false; fvOpen(); };
+  $("#docsBtn").onclick = docsOpen;
+  $("#fvBack").onclick = () => FV.docs ? docsList() : fvList(FV.path);
+  $("#fvReload").onclick = () => FV.file ? fvShow(FV.file) : FV.docs ? docsList() : fvList(FV.path);
 }
 function openNew() { if (S.tab === "team") return openNewTeam(); closeSide(); $("#newDir").value = ""; browse(S.browse || ""); $("#newDlg").showModal(); }
 async function mkdir() {
@@ -570,7 +595,7 @@ async function loadTeam(id, quiet) {
   const changed = first || JSON.stringify(t) !== JSON.stringify(S.team);
   S.team = t; S.cur = null;
   $("#convTitle").textContent = t.title; $("#convFolder").textContent = `team · ~/${t.folder} · ${t.members.length} membri`;
-  $("#moreBtn").hidden = false; $("#filesBtn").hidden = false; $("#composer").hidden = false; composerFor("team");
+  $("#moreBtn").hidden = false; $("#filesBtn").hidden = false; $("#docsBtn").hidden = false; $("#composer").hidden = false; composerFor("team");
   const sel = $("#toSel"), keep = sel.value;
   sel.innerHTML = t.members.map(m => `<option value="${esc(m.role)}">a: ${esc(m.role)}</option>`).join("");
   if (t.members.some(m => m.role === keep)) sel.value = keep;

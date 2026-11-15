@@ -202,6 +202,9 @@ body.kb .composer{padding-bottom:8px}
 .usage .u.bad .bar i{background:var(--bad)} .usage .u.bad .pc{color:var(--bad)}
 .usage .rs{grid-column:1/-1;color:var(--muted);font-size:.7rem}
 .usage.big{padding:0}.usage.big .u{font-size:.85rem}.usage.big .bar{height:7px}
+/* elenco dei documenti .md */
+#fvList .doc .nm{display:flex;flex-direction:column;min-width:0}
+#fvList .doc .nm small{color:var(--muted);font:.72rem var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* ---- temi ---- */
 .themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}
 .theme{display:flex;flex-direction:column;align-items:center;gap:6px;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:8px 6px;font-size:.82rem;font-weight:600}
@@ -411,6 +414,8 @@ body.kb .composer{padding-bottom:7px}
       <div class="ttl"><b id="convTitle">Cantiere</b><small id="convFolder"></small></div>
       <button class="updbtn ghost" id="backTeam" hidden>← Team</button>
       <button class="updbtn" id="updTop" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span id="updTopLbl">Aggiorna</span></button>
+      <button class="iconbtn" id="docsBtn" aria-label="Documenti .md del progetto" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h4"/></svg></button>
       <button class="iconbtn" id="filesBtn" aria-label="File della cartella" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
       <button class="iconbtn" id="moreBtn" aria-label="Opzioni conversazione" hidden>
