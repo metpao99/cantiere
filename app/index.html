@@ -191,6 +191,17 @@ body.kb .composer{padding-bottom:8px}
 .tabs button{display:flex;align-items:center;justify-content:center;gap:6px}
 #menuBtn{position:relative}
 #menuBtn .dot{position:absolute;top:7px;right:6px;width:9px;height:9px;box-shadow:0 0 0 2px var(--bg)}
+/* ---- utilizzo dell'abbonamento ---- */
+.usage{display:flex;flex-direction:column;gap:6px;padding:4px 10px 8px}
+.usage .u{display:grid;grid-template-columns:auto 1fr auto;gap:2px 8px;align-items:center;font-size:.75rem}
+.usage .u b{font-weight:650}
+.usage .u .pc{font:600 .75rem var(--mono)}
+.usage .u .bar{grid-column:1/-1;height:5px}
+.usage .u .bar i{transition:width .6s ease}
+.usage .u.warn .bar i{background:var(--warn)} .usage .u.warn .pc{color:var(--warn)}
+.usage .u.bad .bar i{background:var(--bad)} .usage .u.bad .pc{color:var(--bad)}
+.usage .rs{grid-column:1/-1;color:var(--muted);font-size:.7rem}
+.usage.big{padding:0}.usage.big .u{font-size:.85rem}.usage.big .bar{height:7px}
 /* ---- temi ---- */
 .themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}
 .theme{display:flex;flex-direction:column;align-items:center;gap:6px;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:8px 6px;font-size:.82rem;font-weight:600}
@@ -380,6 +391,7 @@ body.kb .composer{padding-bottom:7px}
     <button class="btn" id="newBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span id="newLbl">Nuova conversazione</span></button>
     <nav id="convList" aria-label="Conversazioni"></nav>
     <div class="side-foot">
+      <div class="usage" id="usageSide" hidden></div>
       <button id="settingsBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Impostazioni</button>
     </div>
   </aside>
@@ -515,6 +527,9 @@ body.kb .composer{padding-bottom:7px}
     <label class="f">Istruzioni fisse per Claude <span class="h">Aggiunte a ogni conversazione (com'è fatto il NAS, regole da rispettare…).</span>
       <textarea class="notes" id="notesIn"></textarea></label>
     <div><button type="button" class="btn ghost" id="notesSave">Salva istruzioni</button></div>
+    <div class="f" style="font-size:.85rem;font-weight:600">Utilizzo dell'abbonamento</div>
+    <div class="usage big" id="usageSet"><span class="muted small">Nessun dato ancora: si aggiorna a ogni risposta di Claude.</span></div>
+    <div class="inline"><button type="button" class="btn ghost" id="usageRefresh">Aggiorna ora</button></div>
     <div class="f" style="font-size:.85rem;font-weight:600">Tema <span class="muted" style="font-weight:400">(vale per questo dispositivo)</span></div>
     <div class="themes" id="themes"></div>
     <label class="f">Barra di stato (ora, rete, batteria) <span class="h">In vetro l'app continua sotto l'ora, ma iOS 26–27 lascia una fascia vuota in fondo e sfuma il titolo (difetto di iOS). iOS la applica solo quando aggiungi l'app alla Home: per cambiarla apri in Safari l'indirizzo dell'app con <code>?barra=piena</code> o <code>?barra=vetro</code> in fondo e aggiungila di nuovo alla Home.</span>

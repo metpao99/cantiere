@@ -62,3 +62,7 @@ indicatore a puntini e cursore durante la scrittura, evidenziatore del codice `h
   assonometria (`isoP`, `isoBox`), fino a 6 postazioni (`SLOTS`), personaggi di spalle davanti al monitor;
   contenuto dello schermo e oggetti sopra la testa secondo lo stato (`deskState`); aeroplanino tra le teste.
   Animazione a ~8 fps solo con la vista aperta e l'app visibile (`officeLoop`). Nomi in HTML sopra la canvas.
+- Utilizzo dell'abbonamento (v3.7): ogni risposta di `claude -p` in stream-json contiene un `rate_limit_event`
+  con `unifiedWindows.five_hour/seven_day` (utilization 0–1, resetsAt). Il server lo salva in `usage.json`
+  (protetto, non nel repo) e lo espone su `/api/usage`; "Aggiorna ora" fa una micro-domanda a Haiku
+  (`refresh_usage`). Il token di `setup-token` non può usare `/api/oauth/usage` (manca lo scope user:profile).

@@ -24,6 +24,8 @@ API (tutte richiedono il login, tranne /api/state e /api/login)
   PATCH  /api/convs/<id>                 {title?, model?, mode?, effort?, dirs?:[cartelle in più sotto --root]}
   DELETE /api/convs/<id>                 elimina la conversazione (i file restano)
   POST   /api/convs/<id>/send            {text, files:[{name, data(base64)}]}
+  GET    /api/usage                      utilizzo dell'abbonamento: finestra di 5 ore e settimana (%, quando riparte)
+  POST   /api/usage/refresh              aggiorna l'utilizzo con una micro-domanda a Haiku
   GET    /api/update                     versione installata e ultima su GitHub (controllo ogni 10 minuti)
   POST   /api/update/check               controlla subito GitHub
   POST   /api/update/run                 avvia update.py: copia del database, aggiornamento, riavvio
@@ -48,13 +50,14 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-APP_VERSION = "3.6"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
+APP_VERSION = "3.7"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
 BASE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE, "app")
 DB_PATH = os.path.join(BASE, "cantiere.db")
 AUTH_FILE = os.path.join(BASE, "auth.json")
 TOKEN_FILE = os.path.join(BASE, "claude-token.json")
 NOTES_FILE = os.path.join(BASE, "istruzioni.md")
+USAGE_FILE = os.path.join(BASE, "usage.json")   # ultimo stato dei limiti d'uso, letto dalle risposte di Claude Code
 COOKIE = "cantiere_session"
 SESSION_AGE = 90 * 24 * 3600
 ID_RE = re.compile(r"^[a-f0-9]{12}$")
@@ -351,6 +354,8 @@ class Run:
                         b["status"] = "err" if c.get("is_error") else "ok"
                         b["result"] = txt[:4000] + ("\n…" if len(txt) > 4000 else "")
                         self.emit({"op": "result", "id": b["id"], "status": b["status"], "result": b["result"]})
+        elif t == "rate_limit_event":
+            save_usage(d.get("rate_limit_info") or {})
         elif t == "result":
             self.meta.update({"cost": d.get("total_cost_usd"), "ms": d.get("duration_ms"),
                               "turns": d.get("num_turns"), "subtype": d.get("subtype")})
@@ -651,6 +656,60 @@ def conv_out(c):
     return c
 
 
+# ---------- limiti d'uso dell'abbonamento ----------
+_usage = {"data": None}
+
+
+def save_usage(info):
+    """Ogni risposta di Claude Code (stream-json) contiene un rate_limit_event con l'utilizzo delle finestre."""
+    win = info.get("unifiedWindows") or {}
+    if not win:
+        return
+    out = {"status": info.get("status"), "updated": int(time.time())}
+    for k in ("five_hour", "seven_day"):
+        w = win.get(k) or {}
+        if "utilization" in w:
+            out[k] = {"pct": max(0, round(float(w["utilization"]) * 100)), "resetsAt": w.get("resetsAt"), "status": w.get("status")}
+    _usage["data"] = out
+    try:
+        with open(USAGE_FILE + ".new", "w") as f:
+            json.dump(out, f)
+        os.replace(USAGE_FILE + ".new", USAGE_FILE)
+    except OSError:
+        pass
+
+
+def get_usage():
+    if _usage["data"] is None:
+        try:
+            with open(USAGE_FILE) as f:
+                _usage["data"] = json.load(f)
+        except (OSError, ValueError):
+            _usage["data"] = {}
+    return _usage["data"]
+
+
+def refresh_usage():
+    """Micro-domanda a Haiku senza salvare la sessione: serve solo a ricevere lo stato dei limiti."""
+    if not claude_bin():
+        return False
+    try:
+        r = subprocess.run([claude_bin(), "-p", "--model", "haiku", "--output-format", "stream-json", "--verbose",
+                            "--no-session-persistence"], input="Rispondi solo: ok", cwd=BASE, env=claude_env(),
+                           capture_output=True, text=True, timeout=120)
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    for line in r.stdout.splitlines():
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if d.get("type") == "rate_limit_event":
+            save_usage(d.get("rate_limit_info") or {})
+            return True
+    return False
+
+
 def test_claude():
     if not claude_bin():
         return False, "Claude Code non è installato sul NAS."
@@ -878,6 +937,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {"claudeInstalled": bool(claude_bin()), "tokenSaved": bool(tok),
                                         "tokenExpires": exp, "root": ROOT, "notes": notes(),
                                         "maxRuns": MAX_RUNS})
+        if path == "/api/usage":
+            return self.send_json(200, get_usage())
         if path == "/api/update":
             check_if_stale()
             return self.send_json(200, update_status())
@@ -1012,6 +1073,10 @@ class Handler(BaseHTTPRequestHandler):
                     with open(NOTES_FILE, "w", encoding="utf-8") as f:
                         f.write(str(body["notes"])[:20000])
                 return self.send_json(200, {"ok": True})
+            if path == "/api/usage/refresh":
+                if not refresh_usage():
+                    return self.send_json(500, {"error": "Non sono riuscito a leggere i limiti da Claude Code"})
+                return self.send_json(200, get_usage())
             if path == "/api/update/check":
                 check_updates()
                 return self.send_json(200, update_status())

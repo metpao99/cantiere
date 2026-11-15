@@ -13,6 +13,7 @@ VERSION
 server.log
 server.pid
 update.log
+usage.json
 __pycache__/
 *.pyc
 *.zip

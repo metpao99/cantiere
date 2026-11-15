@@ -15,7 +15,7 @@ REPO = "metpao99/cantiere"
 BRANCH = "main"
 BASE = os.path.dirname(os.path.abspath(__file__))
 PROTECTED = {"cantiere.db", "cantiere.db-wal", "cantiere.db-shm", "auth.json", "claude-token.json",
-             "istruzioni.md", "github-token.txt", "backups", "server.log", "server.pid", "VERSION", "update.log"}
+             "istruzioni.md", "github-token.txt", "backups", "server.log", "server.pid", "VERSION", "update.log", "usage.json"}
 KEEP_BACKUPS = 10
 
 

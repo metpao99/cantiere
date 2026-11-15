@@ -346,7 +346,7 @@ function renderList() {
     nav.append(b);
   }
 }
-async function loadConvs() { S.convs = (await api("/api/convs")).convs; renderList(); loadTeams().catch(() => {}); }
+async function loadConvs() { S.convs = (await api("/api/convs")).convs; renderList(); loadTeams().catch(() => {}); loadUsage(); }
 async function loadConv(id, keepScroll) {
   try {
     const d = await api(`/api/convs/${id}`);
@@ -951,6 +951,7 @@ async function openSettings() {
   } catch (e) { $("#claudeStatus").textContent = e.message; }
   loadUpdate(false);
   renderThemes();
+  loadUsage();
 }
 async function saveToken() {
   try { await api("/api/settings", { method: "POST", body: { token: $("#tokenIn").value } }); $("#tokenIn").value = ""; toast("Token salvato"); openSettings(); }
@@ -1031,6 +1032,38 @@ async function notifyUpdate() {
   } catch {}
 }
 
+/* ---------- utilizzo dell'abbonamento (5 ore e settimana) ---------- */
+function fmtReset(ts) {
+  if (!ts) return "";
+  const d = new Date(ts * 1000), now = new Date(), hm = d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  if (d - now < 20 * 3600 * 1000 && d.getDate() === now.getDate()) return "riparte alle " + hm;
+  if (d - now < 40 * 3600 * 1000 && d.getDate() === new Date(now.getTime() + 864e5).getDate()) return "riparte domani alle " + hm;
+  return "riparte " + d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric" }) + " alle " + hm;
+}
+function usageRows(u) {
+  return [["five_hour", "5 ore"], ["seven_day", "Settimana"]].filter(([k]) => u[k]).map(([k, lbl]) => {
+    const w = u[k], pct = Math.min(100, w.pct), cls = w.status === "rejected" || pct >= 90 ? "bad" : pct >= 75 ? "warn" : "";
+    return `<div class="u ${cls}"><b>${lbl}</b><span></span><span class="pc">${pct}%</span><div class="bar"><i style="width:${pct}%"></i></div>`
+      + `<span class="rs">${w.status === "rejected" ? "Limite raggiunto · " : ""}${esc(fmtReset(w.resetsAt))}</span></div>`;
+  }).join("");
+}
+let usageData = null;
+function renderUsage(u) {
+  usageData = u;
+  const has = u && (u.five_hour || u.seven_day);
+  $("#usageSide").hidden = !has;
+  if (!has) return;
+  $("#usageSide").innerHTML = usageRows(u);
+  const old = Math.round((Date.now() / 1000 - u.updated) / 60);
+  $("#usageSet").innerHTML = usageRows(u) + `<span class="muted small">Aggiornato ${old < 1 ? "adesso" : old < 60 ? `${old} min fa` : "alle " + new Date(u.updated * 1000).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}: si aggiorna da solo a ogni risposta di Claude.</span>`;
+}
+async function loadUsage() { try { renderUsage(await api("/api/usage")); } catch {} }
+async function refreshUsage() {
+  const b = $("#usageRefresh"); b.disabled = true; b.textContent = "Aggiorno…";
+  try { renderUsage(await api("/api/usage/refresh", { method: "POST", body: {} })); } catch (e) { toast(e.message, true); }
+  finally { b.disabled = false; b.textContent = "Aggiorna ora"; }
+}
+
 /* ---------- login ---------- */
 function showLogin() { closeStream(); $("#app").hidden = true; $("#login").hidden = false; setTimeout(() => $("#pw").focus(), 50); }
 async function login(e) {
@@ -1100,6 +1133,7 @@ function init() {
   $("#testBtn").onclick = testClaude;
   $("#notesSave").onclick = saveNotes;
   $("#updCheck").onclick = () => loadUpdate(true);
+  $("#usageRefresh").onclick = refreshUsage;
   $("#updGo").onclick = runUpdate;
   $("#updTop").onclick = runUpdate;
   /* spazio lasciato all'intestazione fissa (cambia con la barra di stato e la rotazione) */
