@@ -191,6 +191,7 @@ const ICON = {
   err: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
   up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
   send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
   stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
 };
@@ -354,7 +355,7 @@ async function loadConv(id, keepScroll) {
     S.cur = d.conv; S.msgs = d.msgs; S.team = null; stopPoll(); composerFor("chat");
     $("#backTeam").hidden = !d.conv.team_id; $("#backTeam").dataset.team = d.conv.team_id || "";
     $("#convTitle").textContent = d.conv.title; $("#convFolder").textContent = (d.conv.team_id ? "membro del team · " : "") + "~/" + d.conv.folder;
-    $("#moreBtn").hidden = false; $("#composer").hidden = false;
+    $("#moreBtn").hidden = false; $("#filesBtn").hidden = false; $("#composer").hidden = false;
     $("#modeSel").value = d.conv.mode; $("#modelSel").value = d.conv.model; $("#effortSel").value = d.conv.effort || ""; paintEffort(); paintMode();
     if (d.conv.running) { if (!S.es) openStream(id); else S.live = S.live || { blocks: [] }; }
     else { closeStream(); S.live = null; setBusy(false); }
@@ -376,7 +377,7 @@ function route() {
   if (!id) {
     S.cur = null; S.msgs = [];
     $("#convTitle").textContent = "Cantiere"; $("#convFolder").textContent = "";
-    $("#moreBtn").hidden = true; $("#composer").hidden = true; renderMsgs(); renderList(); return;
+    $("#moreBtn").hidden = true; $("#filesBtn").hidden = true; $("#composer").hidden = true; renderMsgs(); renderList(); return;
   }
   return loadConv(id);
 }
@@ -463,6 +464,56 @@ async function browse(path, t) {
     if (!d.dirs.length) { const p = el("p", "muted small", "Nessuna sottocartella."); p.style.padding = "4px 12px"; box.append(p); }
   } catch (e) { toast(e.message); }
 }
+/* ---------- visualizzatore dei file (elenco della cartella della chat o del team, lettura di un file) ---------- */
+const FV = { path: "", file: null };
+const fmtSize = n => n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(n < 10240 ? 1 : 0) + " KB" : (n / 1048576).toFixed(1) + " MB";
+const CODE_EXT = /\.(js|mjs|py|sh|json|css|html?|md|txt|csv|yml|yaml|toml|ini|conf|cfg|sql|xml|svg|webmanifest|log|env|txt)$/i;
+function fvOpen() {
+  const folder = S.team ? S.team.folder : S.cur && S.cur.folder;
+  if (folder == null) return;
+  if (FV.path !== folder && !FV.path.startsWith(folder + "/")) FV.path = folder;
+  FV.file = null;
+  fvList(FV.path); $("#filesDlg").showModal();
+}
+async function fvList(path) {
+  $("#fvFile").hidden = true; $("#fvList").hidden = false; FV.file = null;
+  $("#fvHead").textContent = "File";
+  try {
+    const d = await api("/api/files?path=" + encodeURIComponent(path));
+    FV.path = d.path;
+    $("#fvCrumb").textContent = "~/" + d.path + (d.path ? "/" : "");
+    const box = $("#fvList"); box.innerHTML = "";
+    const row = (icon, name, size, fn) => { const b = el("button", "", icon + `<span class="nm">${esc(name)}</span>` + (size != null ? `<span class="sz">${fmtSize(size)}</span>` : "")); b.type = "button"; b.onclick = fn; box.append(b); };
+    if (d.parent !== null) row(ICON.up, "Cartella superiore", null, () => fvList(d.parent));
+    d.dirs.forEach(n => row(ICON.folder, n, null, () => fvList((d.path ? d.path + "/" : "") + n)));
+    d.files.forEach(f => row(ICON.file, f.name, f.size, () => fvShow((d.path ? d.path + "/" : "") + f.name)));
+    if (!d.dirs.length && !d.files.length) { const p = el("p", "muted small", "Cartella vuota."); p.style.padding = "8px 12px"; box.append(p); }
+  } catch (e) { toast(e.message); }
+}
+async function fvShow(path) {
+  try {
+    const d = await api("/api/file?path=" + encodeURIComponent(path));
+    FV.file = path;
+    $("#fvList").hidden = true; $("#fvFile").hidden = false;
+    $("#fvHead").textContent = d.name;
+    $("#fvInfo").textContent = fmtSize(d.size) + " · " + new Date(d.mtime * 1000).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
+    const body = $("#fvBody"); body.innerHTML = "";
+    if (d.image) { const im = new Image(); im.src = "/api/file?path=" + encodeURIComponent(path) + "&raw=1&t=" + d.mtime; im.alt = d.name; body.append(im); }
+    else if (d.binary) body.append(el("p", "muted", "File binario: non si può mostrare."));
+    else if (/\.(md|markdown)$/i.test(d.name)) { const m = el("div", "md"); m.innerHTML = md(d.text); body.append(m); }
+    else {
+      const ext = (d.name.match(/\.([a-z0-9]+)$/i) || [])[1] || "";
+      const pre = el("pre"); pre.innerHTML = d.text.length > 60000 || !CODE_EXT.test(d.name) ? esc(d.text) : highlight(d.text, ext); body.append(pre);
+    }
+    if (d.truncated) body.append(el("p", "muted small", "File lungo: mostrato solo il primo MB."));
+    $("#filesDlg .body").scrollTop = 0;
+  } catch (e) { toast(e.message); }
+}
+function initFiles() {
+  $("#filesBtn").onclick = fvOpen;
+  $("#fvBack").onclick = () => fvList(FV.path);
+  $("#fvReload").onclick = () => FV.file ? fvShow(FV.file) : fvList(FV.path);
+}
 function openNew() { if (S.tab === "team") return openNewTeam(); closeSide(); $("#newDir").value = ""; browse(S.browse || ""); $("#newDlg").showModal(); }
 async function mkdir() {
   const name = $("#newDir").value.trim(); if (!name) return;
@@ -519,7 +570,7 @@ async function loadTeam(id, quiet) {
   const changed = first || JSON.stringify(t) !== JSON.stringify(S.team);
   S.team = t; S.cur = null;
   $("#convTitle").textContent = t.title; $("#convFolder").textContent = `team · ~/${t.folder} · ${t.members.length} membri`;
-  $("#moreBtn").hidden = false; $("#composer").hidden = false; composerFor("team");
+  $("#moreBtn").hidden = false; $("#filesBtn").hidden = false; $("#composer").hidden = false; composerFor("team");
   const sel = $("#toSel"), keep = sel.value;
   sel.innerHTML = t.members.map(m => `<option value="${esc(m.role)}">a: ${esc(m.role)}</option>`).join("");
   if (t.members.some(m => m.role === keep)) sel.value = keep;
@@ -1128,7 +1179,7 @@ function init() {
   initTeam(); renderTabs();
   $("#sbSel").onchange = () => { localStorage.setItem("cantiere-statusbar", $("#sbSel").value); toast("iOS la cambia solo riaggiungendo l'app alla Home: vedi la spiegazione qui sopra"); };
   $("#schemeSel").onchange = () => { localStorage.setItem("cantiere-scheme", $("#schemeSel").value); applyTheme(); renderThemes(); };
-  initEdgeSwipe(); initConvDlg();
+  initEdgeSwipe(); initConvDlg(); initFiles();
   $("#tokenSave").onclick = saveToken;
   $("#testBtn").onclick = testClaude;
   $("#notesSave").onclick = saveNotes;

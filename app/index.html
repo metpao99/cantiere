@@ -248,6 +248,13 @@ label.f span.h{font-weight:400;color:var(--muted)}
 .dirs button:last-child{border-bottom:0}
 .dirs button:hover{background:var(--soft)}
 .dirs svg{width:18px;height:18px;flex:none;color:var(--muted)}
+.dirs.files{max-height:none}
+.dirs.files .sz{margin-left:auto;font-size:.78rem;color:var(--muted);flex:none}
+.dirs.files .nm{overflow-wrap:anywhere}
+.fv{font-size:.95rem;line-height:1.5}
+.fv pre{margin:0;padding:10px 12px;border-radius:10px;background:var(--code-bg);font:.8rem/1.45 var(--mono);overflow-x:auto;white-space:pre}
+.fv img{max-width:100%;border-radius:10px;display:block}
+.fv .md{overflow-wrap:anywhere}
 .inline{display:flex;gap:6px}
 .inline input{flex:1}
 .status{font-size:.9rem;padding:8px 10px;border-radius:8px;background:var(--soft)}
@@ -404,6 +411,8 @@ body.kb .composer{padding-bottom:7px}
       <div class="ttl"><b id="convTitle">Cantiere</b><small id="convFolder"></small></div>
       <button class="updbtn ghost" id="backTeam" hidden>← Team</button>
       <button class="updbtn" id="updTop" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span id="updTopLbl">Aggiorna</span></button>
+      <button class="iconbtn" id="filesBtn" aria-label="File della cartella" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
       <button class="iconbtn" id="moreBtn" aria-label="Opzioni conversazione" hidden>
         <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
     </div>
@@ -466,6 +475,18 @@ body.kb .composer{padding-bottom:7px}
   <footer><button class="btn ghost" value="cancel">Annulla</button><button class="btn" id="createBtn" value="ok">Inizia qui</button></footer>
 </form></dialog>
 
+<dialog id="filesDlg"><form method="dialog" class="dlg">
+  <header><h2 id="fvHead">File</h2><button class="iconbtn" value="cancel" aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+  <div class="body">
+    <div class="crumb" id="fvCrumb"></div>
+    <div id="fvList" class="dirs files"></div>
+    <div id="fvFile" hidden>
+      <div class="inline" style="align-items:center;margin-bottom:8px"><button type="button" class="btn ghost" id="fvBack">← Elenco</button><span class="muted small" id="fvInfo" style="flex:1;text-align:right;overflow-wrap:anywhere"></span></div>
+      <div id="fvBody" class="fv"></div>
+    </div>
+  </div>
+  <footer><button type="button" class="btn ghost" id="fvReload">Ricarica</button><button class="btn" value="cancel">Chiudi</button></footer>
+</form></dialog>
 <dialog id="teamNewDlg"><form method="dialog" class="dlg" id="teamForm">
   <header><h2>Nuovo team</h2><button class="iconbtn" value="cancel" aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
   <div class="body">

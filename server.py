@@ -18,6 +18,8 @@ API (tutte richiedono il login, tranne /api/state e /api/login)
   POST   /api/settings/test              prova il collegamento a Claude
   GET    /api/folders?path=rel           sottocartelle (non nascoste) sotto --root
   POST   /api/folders                    {path, name} crea una cartella
+  GET    /api/files?path=rel             sottocartelle e file (non nascosti) di una cartella sotto --root
+  GET    /api/file?path=rel[&raw=1]      contenuto di un file: JSON {text|image|binary} oppure, con raw, i byte (immagini)
   GET    /api/convs                      elenco conversazioni
   POST   /api/convs                      {folder, model, mode, effort} nuova conversazione
   GET    /api/convs/<id>                 conversazione + messaggi + stato
@@ -60,6 +62,8 @@ NOTES_FILE = os.path.join(BASE, "istruzioni.md")
 USAGE_FILE = os.path.join(BASE, "usage.json")   # ultimo stato dei limiti d'uso, letto dalle risposte di Claude Code
 COOKIE = "cantiere_session"
 SESSION_AGE = 90 * 24 * 3600
+FILE_TEXT_MAX = 1024 * 1024        # visualizzatore: testo letto al massimo (1 MB)
+FILE_RAW_MAX = 20 * 1024 * 1024    # visualizzatore: immagini servite al massimo (20 MB)
 ID_RE = re.compile(r"^[a-f0-9]{12}$")
 MODES = ("plan", "acceptEdits", "bypassPermissions")
 MODELS = ("", "fable", "opus", "sonnet", "haiku")   # alias di Claude Code (fable = Claude Fable 5.1)
@@ -953,6 +957,57 @@ class Handler(BaseHTTPRequestHandler):
             rel = rel_of(full)
             return self.send_json(200, {"path": rel, "root": ROOT, "dirs": dirs,
                                         "parent": None if not rel else os.path.dirname(rel)})
+        if path == "/api/files":
+            try:
+                full = safe_dir((parse_qs(u.query).get("path") or [""])[0])
+                dirs, files = [], []
+                for e in sorted(os.scandir(full), key=lambda e: e.name.lower()):
+                    if e.name.startswith(".") or e.name == "@eaDir":
+                        continue
+                    if e.is_dir():
+                        dirs.append(e.name)
+                    elif e.is_file():
+                        st = e.stat()
+                        files.append({"name": e.name, "size": st.st_size, "mtime": int(st.st_mtime)})
+            except (ValueError, OSError) as e:
+                return self.send_json(400, {"error": str(e)})
+            rel = rel_of(full)
+            return self.send_json(200, {"path": rel, "root": ROOT, "dirs": dirs, "files": files,
+                                        "parent": None if not rel else os.path.dirname(rel)})
+        if path == "/api/file":
+            qs = parse_qs(u.query)
+            try:
+                full = safe_dir((qs.get("path") or [""])[0])
+                if not os.path.isfile(full):
+                    return self.send_json(404, {"error": "File non trovato"})
+                st = os.stat(full)
+                ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
+                if qs.get("raw"):
+                    if st.st_size > FILE_RAW_MAX:
+                        return self.send_json(413, {"error": "File troppo grande"})
+                    with open(full, "rb") as f:
+                        body = f.read()
+                    self.send_response(200)
+                    self.send_header("Content-Type", ctype)
+                    self.send_header("Content-Length", str(len(body)))
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("X-Content-Type-Options", "nosniff")
+                    self.end_headers()
+                    return self.wfile.write(body)
+                with open(full, "rb") as f:
+                    head = f.read(FILE_TEXT_MAX + 1)
+            except (ValueError, OSError) as e:
+                return self.send_json(400, {"error": str(e)})
+            out = {"path": rel_of(full), "name": os.path.basename(full), "size": st.st_size,
+                   "mtime": int(st.st_mtime), "type": ctype}
+            if ctype.startswith("image/"):
+                out["image"] = True
+            elif b"\0" in head[:8192]:
+                out["binary"] = True
+            else:
+                out["text"] = head[:FILE_TEXT_MAX].decode("utf-8", errors="replace")
+                out["truncated"] = len(head) > FILE_TEXT_MAX
+            return self.send_json(200, out)
         if path == "/api/convs":
             rows = q("SELECT * FROM convs WHERE team_id = '' ORDER BY updated DESC")
             return self.send_json(200, {"convs": [conv_out(c) for c in rows]})
