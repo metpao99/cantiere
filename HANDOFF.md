@@ -76,5 +76,7 @@ indicatore a puntini e cursore durante la scrittura, evidenziatore del codice `h
 - Ufficio vivo (v3.12, solo team collaborativi): `team_phase` legge la fase dalla lavagna (`ufficio/ATTIVITA.md`
   più recente tra cartella del team, dei membri e un livello sotto) → testo in cima all'ufficio; con
   brainstorming/riunione/piano chi è in pausa va alla lavagna. `officeEvents` confronta la cronologia: un messaggio
-  tra membri fa alzare il mittente che va dal collega (`startWalk`, percorsi per corridoi `route`), i messaggi
+  tra membri fa alzare il mittente che va dal collega (`startWalk`, percorsi per corridoi `walkRoute`), i messaggi
   dell'utente fanno cadere una busta. Chi è in pausa ogni tanto va al caffè o alla finestra (`officeLife`).
+- v3.13: la v3.12 chiamava `route` anche la funzione dei percorsi e sovrascriveva la navigazione (chat non si aprivano).
+  Attenzione ai nomi di funzione già usati in app.js: non ci sono moduli, tutto è globale.
