@@ -70,3 +70,6 @@ indicatore a puntini e cursore durante la scrittura, evidenziatore del codice `h
   riletto se cambia) e lo stato del budget. Budget a fasce (`budget_state`): lun–ven 8–18 stop al 40% della finestra
   di 5 ore, altrimenti 85%; settimana 90%. Oltre soglia `/api/agent/send` rifiuta i messaggi tra membri (i messaggi
   dell'utente passano). `MAX_HOPS` di default 25 per i nuovi team.
+- «Team collaborativo» (v3.11): colonna `teams.collab` (0 di default, anche per i team esistenti). Solo se è attivo
+  `team_prompt` aggiunge regolamento e budget, `/api/agent/send` applica il budget e il limite di scambi parte da 25
+  (`OFFICE_HOPS`); i team normali restano come prima (8 scambi). Interruttore in «Nuovo team» e nelle opzioni del team.

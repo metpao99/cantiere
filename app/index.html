@@ -205,6 +205,10 @@ body.kb .composer{padding-bottom:8px}
 /* elenco dei documenti .md */
 #fvList .doc .nm{display:flex;flex-direction:column;min-width:0}
 #fvList .doc .nm small{color:var(--muted);font:.72rem var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* interruttore "Team collaborativo" */
+.switch{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:.9rem}
+.switch input{width:auto;margin:3px 0 0;accent-color:var(--accent);transform:scale(1.2)}
+.switch b{display:block}
 /* ---- temi ---- */
 .themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}
 .theme{display:flex;flex-direction:column;align-items:center;gap:6px;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:8px 6px;font-size:.82rem;font-weight:600}
@@ -504,6 +508,7 @@ body.kb .composer{padding-bottom:7px}
     <div class="f" style="font-size:.85rem;font-weight:600">Membri <span class="muted" style="font-weight:400">(il primo è il capo: riceve i tuoi messaggi di default)</span></div>
     <div id="tMembers" style="display:flex;flex-direction:column;gap:6px"></div>
     <div><button type="button" class="btn ghost" id="tAdd">+ Aggiungi membro</button></div>
+    <label class="switch"><input type="checkbox" id="tCollab"><span><b>Team collaborativo</b><span class="muted small">I membri seguono il regolamento dell'ufficio (ruoli, brainstorming, piano → tuo ok, test, proposta → tuo ok), usano una lavagna comune e rispettano il budget a fasce orarie. Consuma di più: attivalo per i lavori che lo meritano.</span></span></label>
     <p class="muted small" style="margin:0">Ogni membro è una sessione di Claude Code nella sua cartella. Si scrivono con un comando del Cantiere; dopo 8 scambi automatici di fila si fermano e aspettano te.</p>
   </div>
   <footer><button class="btn ghost" value="cancel">Annulla</button><button class="btn" value="ok">Crea team</button></footer>
@@ -535,6 +540,7 @@ body.kb .composer{padding-bottom:7px}
   <header><h2>Opzioni del team</h2><button class="iconbtn" value="cancel" aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
   <div class="body">
     <label class="f">Nome<div class="inline"><input id="tdTitle" autocomplete="off"><button type="button" class="btn ghost" id="tdSave">Salva</button></div></label>
+    <label class="switch"><input type="checkbox" id="tdCollab"><span><b>Team collaborativo</b><span class="muted small">I membri seguono il regolamento dell'ufficio (ruoli, brainstorming, piano → tuo ok, test, proposta → tuo ok), usano una lavagna comune e rispettano il budget a fasce orarie. Consuma di più: attivalo per i lavori che lo meritano.</span></span></label>
     <label class="f">Scambi automatici di fila prima di fermarsi <span class="h">Si azzera ogni volta che scrivi tu.</span>
       <div class="inline"><input id="tdHops" type="number" min="1" max="50" inputmode="numeric"><button type="button" class="btn ghost" id="tdHopsSave">Salva</button></div></label>
     <div class="status" id="tdInfo"></div>

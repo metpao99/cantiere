@@ -35,9 +35,9 @@ API (tutte richiedono il login, tranne /api/state e /api/login)
   POST   /api/convs/<id>/stop            ferma la risposta in corso
   GET    /api/convs/<id>/events          flusso (text/event-stream) della risposta in corso
   GET    /api/teams                      elenco dei team
-  POST   /api/teams                      {title, folder, members:[{role, folder, mode, model}]} nuovo team
+  POST   /api/teams                      {title, folder, collab?, members:[{role, folder, mode, model}]} nuovo team
   GET    /api/teams/<id>                 team, membri (stato e coda) e cronologia unica dei messaggi
-  PATCH  /api/teams/<id>                 {title?, maxHops?}
+  PATCH  /api/teams/<id>                 {title?, maxHops?, collab?}  (collab = «Team collaborativo»: regolamento + budget)
   DELETE /api/teams/<id>                 elimina il team e le chat dei membri (i file restano)
   POST   /api/teams/<id>/send            {to, text, files?:[{name, data}]} messaggio dell'utente a un membro (azzera il contatore)
   POST   /api/teams/<id>/stop            ferma tutti i membri e svuota la coda
@@ -53,7 +53,7 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-APP_VERSION = "3.10"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
+APP_VERSION = "3.11"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
 BASE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE, "app")
 DB_PATH = os.path.join(BASE, "cantiere.db")
@@ -88,7 +88,8 @@ RUNS = {}            # conv_id -> Run
 AGENT_KEYS = {}      # chiave segreta della risposta in corso -> conv_id (per team.py)
 PORT = 8766
 TEAM_PY = os.path.join(BASE, "team.py")
-MAX_HOPS = 25        # scambi automatici tra membri prima di tornare all'utente (le fasi dell'ufficio ne chiedono parecchi)
+MAX_HOPS = 8         # scambi automatici tra membri prima di tornare all'utente
+OFFICE_HOPS = 25     # per i team collaborativi (le fasi dell'ufficio chiedono più passaggi)
 # regolamento dell'ufficio (repository modello): il Cantiere lo passa a ogni membro di un team
 OFFICE_RULES = os.environ.get("CANTIERE_UFFICIO") or os.path.expanduser("~/modello-webapp/UFFICIO.md")
 # budget: soglie della finestra di 5 ore per fascia oraria, e della settimana (vedi UFFICIO.md §7)
@@ -127,6 +128,8 @@ def db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT, conv_id TEXT NOT NULL, from_role TEXT NOT NULL,
                 text TEXT NOT NULL, created INTEGER NOT NULL);
         """)
+        if "collab" not in [r[1] for r in _conn.execute("PRAGMA table_info(teams)")]:
+            _conn.execute("ALTER TABLE teams ADD COLUMN collab INTEGER NOT NULL DEFAULT 0")
         if "files" not in [r[1] for r in _conn.execute("PRAGMA table_info(inbox)")]:
             _conn.execute("ALTER TABLE inbox ADD COLUMN files TEXT NOT NULL DEFAULT '[]'")
         _conn.commit()
@@ -539,8 +542,7 @@ Regole:
   («Autonomo» per lanciare programmi/test) oppure la cartella da aggiungere (percorso esatto). L'utente lo
   imposta toccando il tuo nome nella vista Team (modo, modello, effort, «cartelle in più») e ti fa riprovare.
   Se un altro membro ti dice di essere bloccato, riferisci all'utente la stessa cosa.
-- Budget adesso: {budget_line()}.
-""" + office_section(conv, t)
+""" + (f"- Budget adesso: {budget_line()}.\n" + office_section(conv, t) if t["collab"] else "")
 
 
 def budget_line():
@@ -702,8 +704,9 @@ def create_team(body):
         rows.append((role, rel_of(full), m.get("mode") if m.get("mode") in MODES else "acceptEdits",
                      m.get("model") if m.get("model") in MODELS else ""))
     tid, now = secrets.token_hex(6), int(time.time())
-    q("INSERT INTO teams (id, title, folder, max_hops, created, updated) VALUES (?,?,?,?,?,?)",
-      (tid, title, rel_of(base), MAX_HOPS, now, now))
+    collab = 1 if body.get("collab") else 0
+    q("INSERT INTO teams (id, title, folder, max_hops, collab, created, updated) VALUES (?,?,?,?,?,?,?)",
+      (tid, title, rel_of(base), OFFICE_HOPS if collab else MAX_HOPS, collab, now, now))
     for i, (role, folder, mode, model) in enumerate(rows):
         q("INSERT INTO convs (id, title, folder, model, mode, effort, team_id, role, created, updated) "
           "VALUES (?,?,?,?,?,?,?,?,?,?)", (secrets.token_hex(6), f"{title} · {role}", folder, model, mode, "",
@@ -1189,7 +1192,8 @@ class Handler(BaseHTTPRequestHandler):
                 if not dest or dest["id"] == c["id"]:
                     roles = ", ".join(m["role"] for m in team_members(c["team_id"]) if m["id"] != c["id"])
                     return self.send_json(400, {"error": f"Nessun membro «{to}». Membri: {roles}"})
-                b = budget_state()
+                tc = q("SELECT collab FROM teams WHERE id = ?", (c["team_id"],), one=True)
+                b = budget_state() if tc and tc["collab"] else {"stop": None}
                 if b["stop"]:
                     return self.send_json(429, {"error": f"Budget dell'ufficio finito: {b['stop']}. Messaggio non inviato. "
                                                          "Aggiorna la lavagna, riassumi in chat a che punto siete e fermati."})
@@ -1352,6 +1356,10 @@ class Handler(BaseHTTPRequestHandler):
                 q("UPDATE teams SET title = ? WHERE id = ?", (title, t["id"]))
             if isinstance(body.get("maxHops"), int) and 1 <= body["maxHops"] <= 50:
                 q("UPDATE teams SET max_hops = ? WHERE id = ?", (body["maxHops"], t["id"]))
+            if isinstance(body.get("collab"), bool):
+                q("UPDATE teams SET collab = ? WHERE id = ?", (int(body["collab"]), t["id"]))
+                if body["collab"] and t["max_hops"] < OFFICE_HOPS and "maxHops" not in body:
+                    q("UPDATE teams SET max_hops = ? WHERE id = ?", (OFFICE_HOPS, t["id"]))
             return self.send_json(200, {"team": team_out(q("SELECT * FROM teams WHERE id = ?", (t["id"],), one=True))})
         m = re.match(r"^/api/convs/([^/]+)$", path)
         if not m:

@@ -594,7 +594,7 @@ async function loadTeam(id, quiet) {
   const t = d.team, first = !S.team || S.team.id !== t.id, stick = first || nearBottom();
   const changed = first || JSON.stringify(t) !== JSON.stringify(S.team);
   S.team = t; S.cur = null;
-  $("#convTitle").textContent = t.title; $("#convFolder").textContent = `team · ~/${t.folder} · ${t.members.length} membri`;
+  $("#convTitle").textContent = t.title; $("#convFolder").textContent = `${t.collab ? "team collaborativo" : "team"} · ~/${t.folder} · ${t.members.length} membri`;
   $("#moreBtn").hidden = false; $("#filesBtn").hidden = false; $("#docsBtn").hidden = false; $("#composer").hidden = false; composerFor("team");
   const sel = $("#toSel"), keep = sel.value;
   sel.innerHTML = t.members.map(m => `<option value="${esc(m.role)}">a: ${esc(m.role)}</option>`).join("");
@@ -874,7 +874,7 @@ function memberRow(m = {}) {
   return r;
 }
 function openNewTeam() {
-  closeSide(); $("#tTitle").value = ""; browse(S.tbrowse || S.browse || "", true);
+  closeSide(); $("#tTitle").value = ""; $("#tCollab").checked = false; browse(S.tbrowse || S.browse || "", true);
   const box = $("#tMembers"); box.innerHTML = "";
   box.append(memberRow({ role: "capo" }), memberRow({ role: "sviluppo" }));
   $("#teamNewDlg").showModal();
@@ -885,12 +885,12 @@ async function createTeam(e) {
   const members = [...$("#tMembers").children].map(r => ({ role: r.querySelector(".role-in").value, folder: r.querySelector(".dir-in").value,
     mode: r.querySelector(".mode-in").value, model: r.querySelector(".model-in").value }));
   try {
-    const d = await api("/api/teams", { method: "POST", body: { title: $("#tTitle").value, folder: S.tbrowse, members } });
+    const d = await api("/api/teams", { method: "POST", body: { title: $("#tTitle").value, folder: S.tbrowse, collab: $("#tCollab").checked, members } });
     $("#teamNewDlg").close(); await loadTeams(); go("t-" + d.team.id); setTimeout(() => $("#input").focus(), 50);
   } catch (err) { toast(err.message); }
 }
 function openTeamOpts() {
-  const t = S.team; $("#tdTitle").value = t.title; $("#tdHops").value = t.max_hops;
+  const t = S.team; $("#tdTitle").value = t.title; $("#tdHops").value = t.max_hops; $("#tdCollab").checked = !!t.collab;
   $("#tdInfo").textContent = `Scambi automatici finora: ${t.hops} su ${t.max_hops}. Cartella: ~/${t.folder}`;
   $("#teamDlg").showModal();
 }
@@ -904,6 +904,7 @@ function initTeam() {
   $("#backTeam").onclick = () => go("t-" + $("#backTeam").dataset.team);
   $("#tdSave").onclick = () => patchTeam({ title: $("#tdTitle").value });
   $("#tdHopsSave").onclick = () => patchTeam({ maxHops: Number($("#tdHops").value) });
+  $("#tdCollab").onchange = async () => { await patchTeam({ collab: $("#tdCollab").checked }); if (S.team) $("#tdHops").value = S.team.max_hops; };
   $("#tdStop").onclick = async () => { try { await api(`/api/teams/${S.team.id}/stop`, { method: "POST", body: {} }); toast("Fermati"); $("#teamDlg").close(); loadTeam(S.team.id); } catch (e) { toast(e.message); } };
   $("#tdDelete").onclick = async () => {
     if (!confirm(`Eliminare il team «${S.team.title}» e le chat dei suoi membri? I file nelle cartelle restano.`)) return;
