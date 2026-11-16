@@ -53,7 +53,7 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-APP_VERSION = "3.9"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
+APP_VERSION = "3.10"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
 BASE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE, "app")
 DB_PATH = os.path.join(BASE, "cantiere.db")
@@ -88,7 +88,11 @@ RUNS = {}            # conv_id -> Run
 AGENT_KEYS = {}      # chiave segreta della risposta in corso -> conv_id (per team.py)
 PORT = 8766
 TEAM_PY = os.path.join(BASE, "team.py")
-MAX_HOPS = 8         # scambi automatici tra membri prima di tornare all'utente
+MAX_HOPS = 25        # scambi automatici tra membri prima di tornare all'utente (le fasi dell'ufficio ne chiedono parecchi)
+# regolamento dell'ufficio (repository modello): il Cantiere lo passa a ogni membro di un team
+OFFICE_RULES = os.environ.get("CANTIERE_UFFICIO") or os.path.expanduser("~/modello-webapp/UFFICIO.md")
+# budget: soglie della finestra di 5 ore per fascia oraria, e della settimana (vedi UFFICIO.md §7)
+BUDGET_WORK, BUDGET_FREE, BUDGET_WEEK = 40, 85, 90
 _login_fail = {"n": 0, "until": 0.0}
 
 
@@ -473,6 +477,36 @@ def team_members(team_id):
     return q("SELECT * FROM convs WHERE team_id = ? ORDER BY created, rowid", (team_id,))
 
 
+_rules = {"mtime": None, "text": ""}
+
+
+def office_rules():
+    try:
+        mt = os.path.getmtime(OFFICE_RULES)
+        if mt != _rules["mtime"]:
+            with open(OFFICE_RULES, encoding="utf-8") as f:
+                _rules.update(mtime=mt, text=f.read()[:20000])
+    except OSError:
+        _rules.update(mtime=None, text="")
+    return _rules["text"]
+
+
+def budget_state():
+    """Soglia della fascia oraria e utilizzo attuale: lun–ven 8–18 l'utente lavora e l'ufficio deve consumare poco."""
+    now = datetime.datetime.now()
+    work = now.weekday() < 5 and 8 <= now.hour < 18
+    lim = BUDGET_WORK if work else BUDGET_FREE
+    u = get_usage() or {}
+    five = (u.get("five_hour") or {}).get("pct")
+    week = (u.get("seven_day") or {}).get("pct")
+    stop = None
+    if five is not None and five >= lim:
+        stop = f"finestra di 5 ore al {five}% (limite {lim}% {'in orario di lavoro' if work else 'fuori orario'})"
+    elif week is not None and week >= BUDGET_WEEK:
+        stop = f"settimana al {week}% (limite {BUDGET_WEEK}%)"
+    return {"work": work, "limit": lim, "five": five, "week": week, "stop": stop}
+
+
 def team_prompt(conv):
     if not conv.get("team_id"):
         return ""
@@ -505,6 +539,30 @@ Regole:
   («Autonomo» per lanciare programmi/test) oppure la cartella da aggiungere (percorso esatto). L'utente lo
   imposta toccando il tuo nome nella vista Team (modo, modello, effort, «cartelle in più») e ti fa riprovare.
   Se un altro membro ti dice di essere bloccato, riferisci all'utente la stessa cosa.
+- Budget adesso: {budget_line()}.
+""" + office_section(conv, t)
+
+
+def budget_line():
+    b = budget_state()
+    use = f"5 ore al {b['five']}%, settimana al {b['week']}%" if b["five"] is not None else "utilizzo non ancora noto"
+    return (f"{'orario di lavoro' if b['work'] else 'fuori orario'}, stop al {b['limit']}% delle 5 ore e al {BUDGET_WEEK}% "
+            f"della settimana; {use}" + (f" → BUDGET FINITO ({b['stop']}): non mandare compiti, aggiorna la lavagna e fermati"
+                                         if b["stop"] else ""))
+
+
+def office_section(conv, t):
+    rules = office_rules()
+    if not rules:
+        return ""
+    dirs = sorted({d for d in (conv["folder"], t["folder"]) if d is not None})
+    where = ", ".join("~/" + d for d in dirs)
+    return f"""
+## Regolamento dell'ufficio (da {OFFICE_RULES.replace(os.path.expanduser('~'), '~')})
+Segui questo regolamento. Se il progetto su cui lavori ha in `AGENTS.md` (o `CLAUDE.md`) la sezione
+«Regole dell'ufficio», leggila prima di iniziare: vince su questo regolamento. Cartelle da cui partire: {where}.
+
+{rules}
 """
 
 
@@ -1131,6 +1189,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not dest or dest["id"] == c["id"]:
                     roles = ", ".join(m["role"] for m in team_members(c["team_id"]) if m["id"] != c["id"])
                     return self.send_json(400, {"error": f"Nessun membro «{to}». Membri: {roles}"})
+                b = budget_state()
+                if b["stop"]:
+                    return self.send_json(429, {"error": f"Budget dell'ufficio finito: {b['stop']}. Messaggio non inviato. "
+                                                         "Aggiorna la lavagna, riassumi in chat a che punto siete e fermati."})
                 with _lock:
                     t = q("SELECT * FROM teams WHERE id = ?", (c["team_id"],), one=True)
                     if t["hops"] >= t["max_hops"]:

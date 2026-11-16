@@ -66,3 +66,7 @@ indicatore a puntini e cursore durante la scrittura, evidenziatore del codice `h
   con `unifiedWindows.five_hour/seven_day` (utilization 0–1, resetsAt). Il server lo salva in `usage.json`
   (protetto, non nel repo) e lo espone su `/api/usage`; "Aggiorna ora" fa una micro-domanda a Haiku
   (`refresh_usage`). Il token di `setup-token` non può usare `/api/oauth/usage` (manca lo scope user:profile).
+- Ufficio (v3.10): `team_prompt` aggiunge il regolamento `~/modello-webapp/UFFICIO.md` (variabile `CANTIERE_UFFICIO`,
+  riletto se cambia) e lo stato del budget. Budget a fasce (`budget_state`): lun–ven 8–18 stop al 40% della finestra
+  di 5 ore, altrimenti 85%; settimana 90%. Oltre soglia `/api/agent/send` rifiuta i messaggi tra membri (i messaggi
+  dell'utente passano). `MAX_HOPS` di default 25 per i nuovi team.
