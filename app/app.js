@@ -688,7 +688,8 @@ function deskState(m, last) {
   if (t === "Task" || t === "Agent") return ["command", "Sotto-agente: " + s];
   return ["command", "Comando: " + s];
 }
-const OFF = { W: 176, H: 132, ox: 88, oy: 44, raf: 0, frame: 0, last: 0, members: [], canvas: null };
+const OFF = { W: 176, H: 132, ox: 88, oy: 44, raf: 0, frame: 0, last: 0, members: [], canvas: null,
+  collab: false, walkers: {}, seen: null, team: null, mail: {}, meeting: false, nextWander: {} };
 const ROLE_RGB = { light: ["#1f5f8b", "#9a4f1a", "#2f7a3d", "#7a3d8f", "#a3361f", "#5d6b12"], dark: ["#7db9e8", "#eea36b", "#7fd08f", "#cf9be0", "#ec8a72", "#c8d46a"] };
 const SLOTS = [[1.6, 1.4], [5.8, 1.4], [1.6, 4.6], [5.8, 4.6], [1.6, 7.8], [5.8, 7.8]];
 const PAL = {
@@ -699,6 +700,9 @@ const PAL = {
     mon: "#14171c", win: "#1e3553", winb: "#c9d8ef", pot: "#8a4c2b", leaf: "#3f7d3b", leaf2: "#2f612d", board: "#d9dbe0", frame: "#5b6068",
     skin: "#d9a982", hair: "#2b1f17", stool: "#3d424a", shadow: "rgba(0,0,0,.25)" },
 };
+const STAND_BACK = ["..hhhhh..", ".hhhhhhh.", ".hhhhhhh.", ".hhhhhhh.", "..shhhs..", "...sss...", ".bbbbbbb.", "bbbbbbbbb", "bbbbbbbbb", "sbbbbbbbs", ".bbbbbbb.", "..ppppp.."];
+const STAND_FRONT = ["..hhhhh..", ".hhhhhhh.", ".hsssssh.", ".ssesess.", "..sssss..", "...sss...", ".bbbbbbb.", "bbbbbbbbb", "bbbbbbbbb", "sbbbbbbbs", ".bbbbbbb.", "..ppppp.."];
+const LEGS = [["..pp.pp..", "..pp.pp..", "..kk.kk.."], ["..pp.pp..", ".pp...pp.", ".kk...kk."], ["..pp.pp..", "...p.p...", "..kk.kk.."]];
 const SPR_BACK = ["..hhhhh..", ".hhhhhhh.", ".hhhhhhh.", ".hhhhhhh.", "..shhhs..", "...sss...", ".bbbbbbb.", "bbbbbbbbb", "bbbbbbbbb", "dbbbbbbbd", ".bbbbbbb.", ".dd...dd."];
 const isoP = (gx, gy, z = 0) => [OFF.ox + (gx - gy) * 8, OFF.oy + (gx + gy) * 4 - z];
 function poly(c, pts, col) { c.fillStyle = col; c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); c.fill(); }
@@ -732,6 +736,11 @@ function drawRoom(c, P, dark) {
   poly(c, [isoP(0, 3.2, 14), isoP(0, 7.2, 14), isoP(0, 7.2, 29), isoP(0, 3.2, 29)], P.board);
   [["#1f5f8b", 4, 26, 12], ["#a3361f", 4.4, 22, 8], ["#2f7a3d", 4.2, 18, 14]].forEach(([col, g, z, n]) => {
     for (let i = 0; i < n; i++) { const [x, y] = isoP(0, g + i * 0.2, z); px(c, x, y, 1, 1, col); } });
+  // bancone con la macchinetta del caffè (contro la parete sinistra, davanti)
+  isoBox(c, 0.1, 8.5, 0.75, 1.35, 7, 0, P.dt, P.dl, P.dr);
+  isoBox(c, 0.2, 8.75, 0.45, 0.5, 8, 7, "#3a3f47", "#2a2f37", "#23272e");
+  { const [x, y] = isoP(0.65, 9.0, 12); px(c, x - 1, y, 2, 1, "#e5484d"); }
+  { const [x, y] = isoP(0.5, 9.5, 7); px(c, x, y - 2, 2, 2, "#ffffff"); }
   // pianta nell'angolo
   isoBox(c, 8.6, 0.5, 0.9, 0.9, 6, 0, P.pot, P.pot, P.dl);
   const [lx, ly] = isoP(9.05, 0.95, 6);
@@ -765,6 +774,8 @@ function drawDesk(c, P, m, f) {
   let hd = 0;
   if (st === "idle") hd = 1;
   if (st === "think") hd = f % 8 < 4 ? 0 : -1;
+  m.head = [x0 + 5, y0 - 2];
+  if (OFF.walkers[m.id]) return;   // è in giro per l'ufficio: resta lo sgabello vuoto
   drawSprite(c, SPR_BACK, x0, y0, pal, hd);
   px(c, x0 + 1, y0 + 11, 2, 1, P.shadow); px(c, x0 + 6, y0 + 11, 2, 1, P.shadow);
   if (["write", "edit", "command", "message"].includes(st)) {   // gomiti che si alternano: digita
@@ -779,6 +790,9 @@ function drawDesk(c, P, m, f) {
   if (st === "queued") { px(c, hx, hy - 9, 7, 1, "#8a5e00"); px(c, hx, hy - 1, 7, 1, "#8a5e00"); px(c, hx + 1, hy - 8, 5, 2, "#e2b04a"); px(c, hx + 2, hy - 6, 3, 2, "#e2b04a"); px(c, hx + 3, hy - 4, 1, 1, "#e2b04a"); px(c, hx + 2, hy - 3, 3, 2, f % 4 < 2 ? "#e2b04a" : "#f3d27a"); }
   if (st === "blocked" && f % 4 < 3) glyph(c, "!", hx + 2, hy - 8, "#e5484d");
   m.head = [hx + 1, hy];
+  const mail = OFF.mail[m.id];   // busta che arriva da te
+  if (mail && f < mail) { const k = Math.min(6, 6 - (mail - f - 10)); const [ex, ey] = [hx + 10, hy - 14 + Math.max(0, k) * 2];
+    px(c, ex, ey, 7, 5, "#ffffff"); px(c, ex, ey, 7, 1, "#c9d2db"); px(c, ex + 1, ey + 1, 1, 1, "#c9d2db"); px(c, ex + 5, ey + 1, 1, 1, "#c9d2db"); px(c, ex + 2, ey + 2, 3, 1, "#c9d2db"); }
 }
 const dark = () => document.documentElement.classList.contains("dark");
 function drawOffice() {
@@ -786,22 +800,126 @@ function drawOffice() {
   const c = cv.getContext("2d"), dk = dark(), P = PAL[dk ? "dark" : "light"], f = OFF.frame;
   c.clearRect(0, 0, OFF.W, OFF.H);
   drawRoom(c, P, dk);
-  const ms = OFF.members.slice().sort((a, b) => (a.slot[0] + a.slot[1]) - (b.slot[0] + b.slot[1]));
-  ms.forEach(m => drawDesk(c, P, m, f));
-  // aeroplanino di carta verso il collega
+  const items = OFF.members.map(m => ({ d: m.slot[0] + m.slot[1] + 1.5, fn: () => drawDesk(c, P, m, f) }));
+  Object.values(OFF.walkers).forEach(w => items.push({ d: w.x + w.y, fn: () => drawWalker(c, P, w, f) }));
+  items.sort((a, b) => a.d - b.d).forEach(it => it.fn());
+  Object.values(OFF.walkers).forEach(w => drawTalk(c, w, f));
+  // aeroplanino di carta verso il collega (team normali: nei collaborativi si alzano e vanno di persona)
   OFF.members.forEach(m => {
-    if (m.state !== "message") return;
+    if (m.state !== "message" || OFF.collab) return;
     const to = OFF.members.find(x => x.role === m.to); if (!to || !to.head || !m.head) return;
     const p = (f % 14) / 14, [x1, y1] = m.head, [x2, y2] = to.head;
     const x = x1 + (x2 - x1) * p, y = y1 + (y2 - y1) * p - Math.sin(p * Math.PI) * 14;
     px(c, x, y, 4, 1, "#ffffff"); px(c, x + 1, y - 1, 2, 1, "#ffffff"); px(c, x + 1, y + 1, 2, 1, "#c9d2db");
   });
 }
+
+/* ----- vita d'ufficio (solo team collaborativi): camminate tra le scrivanie, chiacchiere, riunione, caffè ----- */
+const CORR = [1.0, 3.85, 7.05, 9.85], LANES = [0.95, 4.9, 9.3];
+const SPOTS = { coffee: [1.2, 9.2], window: [5.3, 0.95], board: [[0.85, 4.3], [0.85, 5.3], [0.85, 6.3], [1.1, 4.8], [1.1, 5.8], [1.1, 6.8]] };
+const chairOf = m => [m.slot[0] + 1.15, m.slot[1] + 1.7];
+const corrBelow = y => CORR.find(c => c >= y - 0.01) ?? CORR[CORR.length - 1];
+function route(a, b) {   // per i corridoi: giù al corridoio, lungo il corridoio centrale, su fino alla meta
+  const ca = corrBelow(a[1]), cb = corrBelow(b[1]);
+  const pts = [[a[0], ca]];
+  if (ca !== cb) {   // corridoio verticale più vicino (quello a destra passa dalla pianta se si va in fondo)
+    const mid = (a[0] + b[0]) / 2, ok = LANES.filter(l => l < 9 || Math.min(ca, cb) > 1.5);
+    const lane = ok.reduce((p, l) => Math.abs(l - mid) < Math.abs(p - mid) ? l : p, ok[0]);
+    pts.push([lane, ca], [lane, cb]);
+  }
+  pts.push([b[0], cb], b);
+  return pts;
+}
+function startWalk(m, dest, kind, extra = {}) {
+  const from = OFF.walkers[m.id] ? [OFF.walkers[m.id].x, OFF.walkers[m.id].y] : chairOf(m);
+  OFF.walkers[m.id] = Object.assign({ id: m.id, x: from[0], y: from[1], path: route(from, dest), kind, wait: 0, home: false, rgb: m.rgb, dir: 1 }, extra);
+}
+function goHome(w) { const m = OFF.members.find(x => x.id === w.id); if (!m) { delete OFF.walkers[w.id]; return; } w.path = route([w.x, w.y], chairOf(m)); w.home = true; w.talk = null; w.kind = "home"; }
+function officeLife() {
+  const f = OFF.frame, step = 0.22;
+  for (const w of Object.values(OFF.walkers)) {
+    if (w.path.length) {   // cammina verso il prossimo punto
+      const [tx, ty] = w.path[0], dx = tx - w.x, dy = ty - w.y, d = Math.hypot(dx, dy);
+      if (d <= step) { w.x = tx; w.y = ty; w.path.shift(); }
+      else { w.x += dx / d * step; w.y += dy / d * step; }
+      const sdy = (dx + dy) * 4;  // movimento sullo schermo: verso il basso = di fronte
+      if (Math.abs(sdy) > 0.01) w.dir = sdy > 0 ? 1 : -1;
+      w.moving = true;
+      if (!w.path.length) { w.moving = false; if (w.home) { delete OFF.walkers[w.id]; continue; } w.wait = f; w.dir = -1; }   // arrivato: si gira verso la lavagna, la finestra o il collega
+      continue;
+    }
+    w.moving = false;
+    if (w.kind === "visit" && f - w.wait > 26) goHome(w);          // ~3 s di chiacchiera, poi torna
+    if (w.kind === "wander" && f - w.wait > 30) goHome(w);         // caffè o finestra
+    if (w.kind === "meeting" && !OFF.meeting) goHome(w);
+  }
+  // riunione alla lavagna: chi è in pausa ci va quando la fase è brainstorming o piano
+  let seat = 0;
+  OFF.members.forEach(m => {
+    const w = OFF.walkers[m.id], idle = m.state === "idle";
+    if (OFF.meeting && idle && (!w || w.kind === "home")) startWalk(m, SPOTS.board[seat % SPOTS.board.length], "meeting");
+    if (OFF.meeting && idle) seat++;
+    if (w && w.kind === "meeting" && !idle && !w.home) goHome(w);
+  });
+  // ogni tanto chi è in pausa si alza per un caffè o va alla finestra
+  if (!OFF.meeting) OFF.members.forEach(m => {
+    if (m.state !== "idle" || OFF.walkers[m.id]) return;
+    if (!OFF.nextWander[m.id]) OFF.nextWander[m.id] = f + 120 + Math.floor(Math.random() * 300);
+    if (f >= OFF.nextWander[m.id]) { OFF.nextWander[m.id] = f + 250 + Math.floor(Math.random() * 400);
+      startWalk(m, Math.random() < 0.6 ? SPOTS.coffee : SPOTS.window, "wander"); }
+  });
+}
+function drawWalker(c, P, w, f) {
+  const [bx, by] = isoP(w.x, w.y, 0), x0 = Math.round(bx - 4), y0 = Math.round(by - 15);
+  const pal = { h: P.hair, s: P.skin, b: w.rgb, d: w.rgb, e: "#2b2f36", p: "#3b4250", k: "#20242b" };
+  px(c, x0 + 1, by - 1, 7, 2, P.shadow);
+  const bob = w.moving && f % 2 ? -1 : 0;
+  drawSprite(c, w.dir > 0 ? STAND_FRONT : STAND_BACK, x0, y0 + bob, pal);
+  const legs = w.moving ? LEGS[1 + (f % 2)] : LEGS[0];
+  legs.forEach((r, j) => { for (let i = 0; i < r.length; i++) { const col = pal[r[i]]; if (col) px(c, x0 + i, y0 + 12 + j, 1, 1, col); } });
+  w.head = [x0 + 4, y0 + bob - 2];
+  if (!w.moving && w.kind === "wander" && f % 10 < 7) {   // tazzina in mano
+    px(c, x0 + 9, y0 + 8, 3, 3, "#ffffff"); px(c, x0 + 12, y0 + 9, 1, 1, "#ffffff"); px(c, x0 + 10, y0 + 6 - (f % 3), 1, 1, "#c9d2db"); }
+}
+function bubbleAt(c, x, y, f, lines) {
+  px(c, x - 1, y - 9, 14, 7, "#ffffff"); px(c, x, y - 10, 12, 9, "#ffffff"); px(c, x + 2, y - 1, 2, 2, "#ffffff");
+  for (let i = 0; i < 3; i++) px(c, x + 2, y - 8 + i * 2, lines[i] || 0, 1, "#8a96a3");
+}
+function drawTalk(c, w, f) {   // nuvolette che si alternano: si parlano
+  if (w.moving || !w.head) return;
+  if (w.kind === "visit") {
+    const other = OFF.members.find(m => m.id === w.to);
+    const turn = Math.floor((f - w.wait) / 6) % 2;
+    if (turn === 0) bubbleAt(c, w.head[0] - 2, w.head[1] - 2, f, [8, 6, 9]);
+    else if (other && other.head) bubbleAt(c, other.head[0] - 4, other.head[1] - 6, f, [7, 9, 5]);
+  }
+  if (w.kind === "meeting") {
+    const ids = Object.values(OFF.walkers).filter(x => x.kind === "meeting" && !x.moving).map(x => x.id);
+    if (ids.length > 1 && ids[Math.floor(f / 8) % ids.length] === w.id) bubbleAt(c, w.head[0] - 2, w.head[1] - 2, f, [9, 6, 8]);
+  }
+}
+function officeEvents(t) {
+  // messaggi nuovi nella cronologia: chi scrive si alza e va dal collega; i tuoi diventano una busta
+  const keys = t.timeline.filter(it => it.kind === "msg").map(it => `${it.conv}-${it.created}-${it.from}-${(it.text || "").length}`);
+  if (!OFF.seen || OFF.team !== t.id) { OFF.seen = new Set(keys); OFF.team = t.id; OFF.walkers = {}; OFF.mail = {}; return; }
+  t.timeline.forEach((it, i) => {
+    if (it.kind !== "msg") return;
+    const k = `${it.conv}-${it.created}-${it.from}-${(it.text || "").length}`;
+    if (OFF.seen.has(k)) return;
+    OFF.seen.add(k);
+    const to = OFF.members.find(m => m.id === it.conv);
+    if (!to) return;
+    if (it.from === "tu") { OFF.mail[to.id] = OFF.frame + 24; return; }
+    const from = OFF.members.find(m => m.role === it.from);
+    if (!from || OFF.walkers[from.id]) return;
+    startWalk(from, [to.slot[0] + 0.4, to.slot[1] + 1.75], "visit", { to: to.id });
+  });
+}
 function officeLoop(ts) {
   if (!OFF.canvas || !document.body.contains(OFF.canvas) || S.teamView !== "office" || !S.team) { OFF.raf = 0; return; }
   OFF.raf = requestAnimationFrame(officeLoop);
-  if (document.visibilityState !== "visible" || ts - OFF.last < 125) return;   // ~8 fotogrammi al secondo, come la pixel art
-  OFF.last = ts; OFF.frame++; drawOffice();
+  if (document.visibilityState !== "visible" || ts - OFF.last < (Object.keys(OFF.walkers).length ? 90 : 125)) return;   // 8–11 fotogrammi al secondo, come la pixel art
+  OFF.last = ts; OFF.frame++; if (OFF.collab) officeLife(); drawOffice();
 }
 function placeTags() {
   const cv = OFF.canvas, room = cv && cv.parentElement; if (!room) return;
@@ -821,7 +939,7 @@ function renderOffice(t, color, lastWork) {
   const chips = chipsEl(t, color, lastWork);
   if (!room || room.dataset.team !== t.id) {
     box.innerHTML = ""; box.append(chips, el("div", "office-head"));
-    room = el("div", "room"); room.dataset.team = t.id;
+    room = el("div", "room"); room.dataset.team = t.id; OFF.seen = null;   // nuova vista: niente animazioni per i messaggi vecchi
     const cv = document.createElement("canvas"); cv.width = OFF.W; cv.height = OFF.H; room.append(cv);
     cv.onclick = e => {
       const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * OFF.W / r.width, y = (e.clientY - r.top) * OFF.H / r.height;
@@ -841,7 +959,11 @@ function renderOffice(t, color, lastWork) {
       to: m.activity && m.activity.to, since: m.activity && m.activity.since, head: old && old.head };
   });
   const working = t.members.filter(m => m.running).length;
-  box.querySelector(".office-head").textContent = working ? `${working} al lavoro · tocca un personaggio per i dettagli` : "Tutti in pausa · scrivi al team per farli lavorare";
+  OFF.collab = !!t.collab;
+  OFF.meeting = !!(t.collab && t.phase && /brainstorm|riunion|piano/i.test(t.phase.text));
+  if (OFF.collab) officeEvents(t); else { OFF.walkers = {}; OFF.seen = null; }
+  box.querySelector(".office-head").textContent = (t.collab && t.phase ? t.phase.text + " · " : "")
+    + (working ? `${working} al lavoro · tocca un personaggio per i dettagli` : "Tutti in pausa · scrivi al team per farli lavorare");
   const staff = box.querySelector(".staff"); staff.innerHTML = "";
   OFF.members.forEach(m => {
     const since = m.since ? Math.max(0, Math.round(Date.now() / 1000 - m.since)) : null;

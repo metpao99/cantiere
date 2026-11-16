@@ -53,7 +53,7 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-APP_VERSION = "3.11"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
+APP_VERSION = "3.12"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
 BASE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE, "app")
 DB_PATH = os.path.join(BASE, "cantiere.db")
@@ -587,6 +587,44 @@ def run_activity(cid):
     return act
 
 
+def team_phase(t, members):
+    """Fase corrente dalla lavagna (ufficio/ATTIVITA.md, «fase corrente in cima»): cartella del team, dei membri,
+    loro cartelle in più e un livello sotto (se il team sta nella home). Vince il file modificato più di recente."""
+    bases = {t["folder"]} | {m["folder"] for m in members}
+    for m in members:
+        bases |= set(conv_dirs(m))
+    found = []
+    for rel in bases:
+        try:
+            base = safe_dir(rel)
+        except ValueError:
+            continue
+        cands = [os.path.join(base, "ufficio", "ATTIVITA.md")]
+        try:
+            cands += [os.path.join(e.path, "ufficio", "ATTIVITA.md") for e in os.scandir(base)
+                      if e.is_dir() and not e.name.startswith(".")]
+        except OSError:
+            pass
+        for p in cands:
+            try:
+                found.append((os.path.getmtime(p), p))
+            except OSError:
+                pass
+    if not found:
+        return None
+    path = max(found)[1]
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            head = [next(f, "") for _ in range(20)]
+    except OSError:
+        return None
+    for line in head:
+        txt = re.sub(r"[#*_`>|]+", " ", line).strip(" -:\n\t")
+        if re.search(r"\bfase\b", txt, re.I):
+            return {"text": re.sub(r"\s+", " ", txt)[:90], "file": rel_of(path)}
+    return None
+
+
 def team_out(t, full=False):
     t = dict(t)
     ms = team_members(t["id"])
@@ -614,6 +652,8 @@ def team_out(t, full=False):
                     continue
             tl.append(item)
         t["timeline"] = tl
+        if t.get("collab"):
+            t["phase"] = team_phase(t, ms)
     return t
 
 
