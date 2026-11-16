@@ -819,7 +819,7 @@ const CORR = [1.0, 3.85, 7.05, 9.85], LANES = [0.95, 4.9, 9.3];
 const SPOTS = { coffee: [1.2, 9.2], window: [5.3, 0.95], board: [[0.85, 4.3], [0.85, 5.3], [0.85, 6.3], [1.1, 4.8], [1.1, 5.8], [1.1, 6.8]] };
 const chairOf = m => [m.slot[0] + 1.15, m.slot[1] + 1.7];
 const corrBelow = y => CORR.find(c => c >= y - 0.01) ?? CORR[CORR.length - 1];
-function route(a, b) {   // per i corridoi: giù al corridoio, lungo il corridoio centrale, su fino alla meta
+function walkRoute(a, b) {   // per i corridoi: giù al corridoio, lungo il corridoio centrale, su fino alla meta
   const ca = corrBelow(a[1]), cb = corrBelow(b[1]);
   const pts = [[a[0], ca]];
   if (ca !== cb) {   // corridoio verticale più vicino (quello a destra passa dalla pianta se si va in fondo)
@@ -832,9 +832,9 @@ function route(a, b) {   // per i corridoi: giù al corridoio, lungo il corridoi
 }
 function startWalk(m, dest, kind, extra = {}) {
   const from = OFF.walkers[m.id] ? [OFF.walkers[m.id].x, OFF.walkers[m.id].y] : chairOf(m);
-  OFF.walkers[m.id] = Object.assign({ id: m.id, x: from[0], y: from[1], path: route(from, dest), kind, wait: 0, home: false, rgb: m.rgb, dir: 1 }, extra);
+  OFF.walkers[m.id] = Object.assign({ id: m.id, x: from[0], y: from[1], path: walkRoute(from, dest), kind, wait: 0, home: false, rgb: m.rgb, dir: 1 }, extra);
 }
-function goHome(w) { const m = OFF.members.find(x => x.id === w.id); if (!m) { delete OFF.walkers[w.id]; return; } w.path = route([w.x, w.y], chairOf(m)); w.home = true; w.talk = null; w.kind = "home"; }
+function goHome(w) { const m = OFF.members.find(x => x.id === w.id); if (!m) { delete OFF.walkers[w.id]; return; } w.path = walkRoute([w.x, w.y], chairOf(m)); w.home = true; w.talk = null; w.kind = "home"; }
 function officeLife() {
   const f = OFF.frame, step = 0.22;
   for (const w of Object.values(OFF.walkers)) {
