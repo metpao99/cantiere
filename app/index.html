@@ -566,6 +566,8 @@ body.kb .composer{padding-bottom:7px}
     <div class="themes" id="themes"></div>
     <label class="f">Barra di stato (ora, rete, batteria) <span class="h">In vetro l'app continua sotto l'ora, ma iOS 26–27 lascia una fascia vuota in fondo e sfuma il titolo (difetto di iOS). iOS la applica solo quando aggiungi l'app alla Home: per cambiarla apri in Safari l'indirizzo dell'app con <code>?barra=piena</code> o <code>?barra=vetro</code> in fondo e aggiungila di nuovo alla Home.</span>
       <select id="sbSel"><option value="auto">Piena (consigliata)</option><option value="glass">In vetro (iOS lascia una fascia vuota in fondo)</option></select></label>
+    <label class="f">Voce per la lettura dei file <span class="h">«Predefinita» usa la voce scelta in Impostazioni › Accessibilità › Contenuto letto ad alta voce. Le voci migliori si scaricano da lì.</span>
+      <div class="inline"><select id="voiceSel"></select><button type="button" class="btn ghost" id="voiceTest">Prova</button></div></label>
     <label class="f">Aspetto<select id="schemeSel"><option value="auto">Automatico (come il telefono)</option><option value="light">Sempre chiaro</option><option value="dark">Sempre scuro</option></select></label>
     <div class="status" id="updStatus">…</div>
     <div class="muted small" id="verLine">Versione …</div>

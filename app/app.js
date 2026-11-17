@@ -552,11 +552,38 @@ function speakParts(t) {
   });
   return out;
 }
+/* voce: di default non la scelgo io (iOS usa quella di Accessibilità › Contenuto letto ad alta voce);
+   in Impostazioni si può sceglierne un'altra tra quelle italiane, prima le migliori (Premium, Avanzata, Siri) */
+const voiceRank = v => /premium/i.test(v.name + v.voiceURI) ? 0 : /enhanced|avanzat|siri|neural/i.test(v.name + v.voiceURI) ? 1 : /compact|eloquence|eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley|nonn/i.test(v.name + v.voiceURI) ? 3 : 2;
+const itVoices = () => ("speechSynthesis" in window ? speechSynthesis.getVoices() : []).filter(v => /^it/i.test(v.lang))
+  .sort((a, b) => voiceRank(a) - voiceRank(b) || a.name.localeCompare(b.name));
+function chosenVoice() {
+  const want = localStorage.getItem("cantiere-voice");
+  return want ? itVoices().find(v => v.voiceURI === want) || null : null;
+}
+function renderVoices() {
+  const sel = $("#voiceSel"); if (!sel) return;
+  const box = sel.closest("label"); box.hidden = !("speechSynthesis" in window);
+  const want = localStorage.getItem("cantiere-voice") || "";
+  const lbl = ["Premium", "Avanzata", "", "di base"];
+  sel.innerHTML = "";
+  sel.append(new Option("Predefinita del telefono (Accessibilità)", ""));
+  itVoices().forEach(v => { const r = voiceRank(v); sel.append(new Option(v.name + (lbl[r] ? " · " + lbl[r] : ""), v.voiceURI)); });
+  sel.value = itVoices().some(v => v.voiceURI === want) ? want : "";
+}
+function voiceTest() {
+  if (!("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance("Ciao, sono la voce che leggerà i tuoi documenti nel Cantiere.");
+  u.lang = "it-IT"; const v = chosenVoice(); if (v) u.voice = v;
+  speechSynthesis.speak(u);
+}
+if ("speechSynthesis" in window) speechSynthesis.addEventListener("voiceschanged", renderVoices);   // su iPhone l'elenco arriva dopo
 function speakPaint() { $("#fvSpeak").textContent = !SPK.on ? "▶ Ascolta" : SPK.paused ? "▶ Riprendi" : "⏸ Pausa"; }
 function speakNext() {
   if (!SPK.on || SPK.i >= SPK.parts.length) { SPK.on = false; speakPaint(); return; }
   const u = new SpeechSynthesisUtterance(SPK.parts[SPK.i]);
-  u.lang = "it-IT"; const v = speechSynthesis.getVoices().find(x => /^it/i.test(x.lang)); if (v) u.voice = v;
+  u.lang = "it-IT"; const v = chosenVoice(); if (v) u.voice = v;   // nessuna scelta = voce delle impostazioni di Accessibilità
   u.onend = () => { if (SPK.on && !SPK.paused) { SPK.i++; speakNext(); } };
   u.onerror = () => { SPK.on = false; speakPaint(); };
   speechSynthesis.speak(u);
@@ -570,6 +597,8 @@ function speakToggle() {
 function speakStop() { if ("speechSynthesis" in window) speechSynthesis.cancel(); SPK.on = false; SPK.paused = false; if ($("#fvSpeak")) speakPaint(); }
 function initFiles() {
   $("#fvSpeak").onclick = speakToggle;
+  $("#voiceSel").onchange = () => { const v = $("#voiceSel").value; if (v) localStorage.setItem("cantiere-voice", v); else localStorage.removeItem("cantiere-voice"); voiceTest(); };
+  $("#voiceTest").onclick = voiceTest;
   $("#filesDlg").addEventListener("close", speakStop);
   $("#filesBtn").onclick = () => { FV.docs = false; fvOpen(); };
   $("#docsBtn").onclick = docsOpen;
@@ -1186,7 +1215,7 @@ async function openSettings() {
     $("#notesIn").value = s.notes;
   } catch (e) { $("#claudeStatus").textContent = e.message; }
   loadUpdate(false);
-  renderThemes();
+  renderThemes(); renderVoices();
   loadUsage();
 }
 async function saveToken() {
