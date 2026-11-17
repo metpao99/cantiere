@@ -530,13 +530,50 @@ async function fvShow(path) {
       const pre = el("pre"); pre.innerHTML = d.text.length > 60000 || !CODE_EXT.test(d.name) ? esc(d.text) : highlight(d.text, ext); body.append(pre);
     }
     if (d.truncated) body.append(el("p", "muted small", "File lungo: mostrato solo il primo MB."));
+    speakStop(); FV.speakText = d.text && !d.binary && !d.image ? d.text : "";
+    $("#fvSpeak").hidden = !(FV.speakText && "speechSynthesis" in window);
     $("#filesDlg .body").scrollTop = 0;
   } catch (e) { toast(e.message); }
 }
+/* lettura ad alta voce del file aperto (voce del telefono, niente server): a pezzi brevi, perché iOS tronca i testi lunghi */
+const SPK = { parts: [], i: 0, on: false, paused: false };
+function speakClean(t) {
+  return t.replace(/```[\s\S]*?```/g, " ").replace(/`([^`]*)`/g, "$1").replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^\s*\|?\s*:?-{2,}[-|:\s]*$/gm, "").replace(/\|/g, ", ").replace(/^#{1,6}\s*(.*)$/gm, "$1.")
+    .replace(/^\s*([-*+]|\d+[.)])\s+/gm, "").replace(/^\s*>\s?/gm, "").replace(/[*_~]{1,3}/g, "").replace(/[→▸·]/g, ", ");
+}
+function speakParts(t) {
+  const out = [];
+  speakClean(t).split(/\n+/).map(x => x.trim()).filter(Boolean).forEach(par => {
+    (par.match(/[^.!?;:]+[.!?;:]*\s*/g) || [par]).forEach(f => {
+      const last = out[out.length - 1];
+      if (last && (last + f).length < 220) out[out.length - 1] = last.replace(/\s*$/, " ") + f; else out.push(f);
+    });
+  });
+  return out;
+}
+function speakPaint() { $("#fvSpeak").textContent = !SPK.on ? "▶ Ascolta" : SPK.paused ? "▶ Riprendi" : "⏸ Pausa"; }
+function speakNext() {
+  if (!SPK.on || SPK.i >= SPK.parts.length) { SPK.on = false; speakPaint(); return; }
+  const u = new SpeechSynthesisUtterance(SPK.parts[SPK.i]);
+  u.lang = "it-IT"; const v = speechSynthesis.getVoices().find(x => /^it/i.test(x.lang)); if (v) u.voice = v;
+  u.onend = () => { if (SPK.on && !SPK.paused) { SPK.i++; speakNext(); } };
+  u.onerror = () => { SPK.on = false; speakPaint(); };
+  speechSynthesis.speak(u);
+}
+function speakToggle() {
+  if (!SPK.on) { speechSynthesis.cancel(); SPK.parts = speakParts(FV.speakText || ""); SPK.i = 0; SPK.on = true; SPK.paused = false; speakNext(); }
+  else if (SPK.paused) { SPK.paused = false; speakNext(); }
+  else { SPK.paused = true; speechSynthesis.cancel(); }
+  speakPaint();
+}
+function speakStop() { if ("speechSynthesis" in window) speechSynthesis.cancel(); SPK.on = false; SPK.paused = false; if ($("#fvSpeak")) speakPaint(); }
 function initFiles() {
+  $("#fvSpeak").onclick = speakToggle;
+  $("#filesDlg").addEventListener("close", speakStop);
   $("#filesBtn").onclick = () => { FV.docs = false; fvOpen(); };
   $("#docsBtn").onclick = docsOpen;
-  $("#fvBack").onclick = () => FV.docs ? docsList() : fvList(FV.path);
+  $("#fvBack").onclick = () => { speakStop(); FV.docs ? docsList() : fvList(FV.path); };
   $("#fvReload").onclick = () => FV.file ? fvShow(FV.file) : FV.docs ? docsList() : fvList(FV.path);
 }
 function openNew() { if (S.tab === "team") return openNewTeam(); closeSide(); $("#newDir").value = ""; browse(S.browse || ""); $("#newDlg").showModal(); }
