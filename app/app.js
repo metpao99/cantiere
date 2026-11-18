@@ -1077,7 +1077,21 @@ async function createTeam(e) {
     $("#teamNewDlg").close(); await loadTeams(); go("t-" + d.team.id); setTimeout(() => $("#input").focus(), 50);
   } catch (err) { toast(err.message); }
 }
+function newMemberRow() {
+  const r = memberRow({ role: "" }); r.querySelector(".x").hidden = true;
+  $("#tdNew").innerHTML = ""; $("#tdNew").append(r);
+}
+async function addMember() {
+  const r = $("#tdNew .mrow"), t = S.team;
+  const body = { role: r.querySelector(".role-in").value, folder: r.querySelector(".dir-in").value, mode: r.querySelector(".mode-in").value, model: r.querySelector(".model-in").value };
+  if (!body.role.trim()) return toast("Scrivi il nome del nuovo membro (es. tester)");
+  try {
+    const d = await api(`/api/teams/${t.id}/members`, { method: "POST", body });
+    toast("Membro aggiunto"); newMemberRow(); S.team = Object.assign(S.team, { members: d.team.members }); loadTeam(t.id); loadTeams();
+  } catch (e) { toast(e.message); }
+}
 function openTeamOpts() {
+  newMemberRow();
   const t = S.team; $("#tdTitle").value = t.title; $("#tdHops").value = t.max_hops; $("#tdCollab").checked = !!t.collab;
   $("#tdInfo").textContent = `Scambi automatici finora: ${t.hops} su ${t.max_hops}. Cartella: ~/${t.folder}`;
   $("#teamDlg").showModal();
@@ -1092,6 +1106,7 @@ function initTeam() {
   $("#backTeam").onclick = () => go("t-" + $("#backTeam").dataset.team);
   $("#tdSave").onclick = () => patchTeam({ title: $("#tdTitle").value });
   $("#tdHopsSave").onclick = () => patchTeam({ maxHops: Number($("#tdHops").value) });
+  $("#tdAdd").onclick = addMember;
   $("#tdCollab").onchange = async () => { await patchTeam({ collab: $("#tdCollab").checked }); if (S.team) $("#tdHops").value = S.team.max_hops; };
   $("#tdStop").onclick = async () => { try { await api(`/api/teams/${S.team.id}/stop`, { method: "POST", body: {} }); toast("Fermati"); $("#teamDlg").close(); loadTeam(S.team.id); } catch (e) { toast(e.message); } };
   $("#tdDelete").onclick = async () => {
@@ -1113,7 +1128,8 @@ function openConvDlg(c, denied) {
   $("#cdOwn").textContent = "~/" + c.folder;
   $("#cdDenied").hidden = !denied;
   if (denied) $("#cdDenied").innerHTML = `Era bloccato su <b>${esc(denied.map(x => TOOL_NAMES[x] || x).join(", "))}</b>. Per programmi e test scegli <b>Autonomo</b>; per file fuori dalla sua cartella aggiungi la cartella qui sotto (il percorso di solito è scritto nel suo messaggio).`;
-  $("#cdRetry").hidden = !member; $("#cdOpen").hidden = !member || (S.cur && S.cur.id === c.id); $("#cdDelete").hidden = member;
+  $("#cdRetry").hidden = !member; $("#cdOpen").hidden = !member || (S.cur && S.cur.id === c.id);
+  $("#cdDelete").textContent = member ? "Togli dal team" : "Elimina";
   $("#cdPick").hidden = true; renderCdDirs();
   $("#convDlg").showModal();
 }
@@ -1154,8 +1170,13 @@ function initConvDlg() {
   $("#cdRetry").onclick = () => saveConvDlg(true);
   $("#cdOpen").onclick = () => { const id = CD.c.id; $("#convDlg").close(); go(id); };
   $("#cdDelete").onclick = async () => {
-    if (!confirm("Eliminare questa conversazione? I file nella cartella restano.")) return;
-    try { await api(`/api/convs/${CD.c.id}`, { method: "DELETE" }); $("#convDlg").close(); go(""); loadConvs(); } catch (e) { toast(e.message); }
+    const c = CD.c, member = !!c.team_id;
+    if (!confirm(member ? `Togliere «${c.role}» dal team? La sua chat si cancella, i file nelle cartelle restano.` : "Eliminare questa conversazione? I file nella cartella restano.")) return;
+    try {
+      await api(`/api/convs/${c.id}`, { method: "DELETE" }); $("#convDlg").close();
+      if (member) { toast(`«${c.role}» tolto dal team`); if (S.team && S.team.id === c.team_id) loadTeam(c.team_id); else go("t-" + c.team_id); loadTeams(); }
+      else { go(""); loadConvs(); }
+    } catch (e) { toast(e.message); }
   };
 }
 

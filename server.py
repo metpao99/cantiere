@@ -41,6 +41,8 @@ API (tutte richiedono il login, tranne /api/state e /api/login)
   DELETE /api/teams/<id>                 elimina il team e le chat dei membri (i file restano)
   POST   /api/teams/<id>/send            {to, text, files?:[{name, data}]} messaggio dell'utente a un membro (azzera il contatore)
   POST   /api/teams/<id>/stop            ferma tutti i membri e svuota la coda
+  POST   /api/teams/<id>/members         {role, folder?, mode?, model?} aggiunge un membro (massimo 6)
+  (per togliere un membro: DELETE /api/convs/<id del membro>; ne restano almeno 2)
 Per i membri dei team (solo con la chiave X-Cantiere-Key che il server dà a ogni risposta in corso):
   GET    /api/agent/team                 chi sono e chi c'è nel team
   POST   /api/agent/send                 {to, text} messaggio a un altro membro (vedi team.py)
@@ -53,7 +55,7 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-APP_VERSION = "3.15"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
+APP_VERSION = "3.16"   # aumentalo a ogni modifica pubblicata (si vede in Impostazioni)
 BASE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(BASE, "app")
 DB_PATH = os.path.join(BASE, "cantiere.db")
@@ -754,6 +756,25 @@ def create_team(body):
     return tid
 
 
+def add_member(t, m):
+    """Nuovo membro in un team esistente: stesse regole della creazione; la sottocartella è relativa a quella del team."""
+    members = team_members(t["id"])
+    if len(members) >= 6:
+        raise ValueError("Un team ha al massimo 6 membri")
+    role = clean_role(m.get("role"))
+    if role == "tu" or any(x["role"] == role for x in members):
+        raise ValueError(f"C'è già un membro «{role}» (o il nome non è valido)")
+    sub = str(m.get("folder") or "").strip().strip("/")
+    full = safe_dir(os.path.join(t["folder"], sub)) if sub else safe_dir(t["folder"])
+    os.makedirs(full, exist_ok=True)
+    now = int(time.time())
+    q("INSERT INTO convs (id, title, folder, model, mode, effort, team_id, role, created, updated) VALUES (?,?,?,?,?,?,?,?,?,?)",
+      (secrets.token_hex(6), f"{t['title']} · {role}", rel_of(full), m.get("model") if m.get("model") in MODELS else "",
+       m.get("mode") if m.get("mode") in MODES else "acceptEdits", "", t["id"], role, now, now))
+    q("UPDATE teams SET updated = ? WHERE id = ?", (now, t["id"]))
+    return role
+
+
 def conv_out(c):
     c = dict(c)
     c["running"] = c["id"] in RUNS
@@ -1310,6 +1331,13 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/teams":
                 tid = create_team(self.read_json())
                 return self.send_json(200, {"team": team_out(q("SELECT * FROM teams WHERE id = ?", (tid,), one=True))})
+            m = re.match(r"^/api/teams/([a-f0-9]{12})/members$", path)
+            if m:
+                t = q("SELECT * FROM teams WHERE id = ?", (m.group(1),), one=True)
+                if not t:
+                    return self.send_json(404, {"error": "Team non trovato"})
+                add_member(t, self.read_json())
+                return self.send_json(200, {"team": team_out(q("SELECT * FROM teams WHERE id = ?", (t["id"],), one=True))})
             m = re.match(r"^/api/teams/([a-f0-9]{12})/(send|stop)$", path)
             if m:
                 t = q("SELECT * FROM teams WHERE id = ?", (m.group(1),), one=True)
@@ -1458,9 +1486,12 @@ class Handler(BaseHTTPRequestHandler):
         c = self.conv_or_404(m.group(1))
         if not c:
             return
+        if c["team_id"] and len(team_members(c["team_id"])) <= 2:
+            return self.send_json(400, {"error": "Un team ha almeno 2 membri: aggiungine un altro prima di togliere questo"})
         r = RUNS.get(c["id"])
         if r:
             r.stop()
+        q("DELETE FROM inbox WHERE conv_id = ?", (c["id"],))
         q("DELETE FROM msgs WHERE conv_id = ?", (c["id"],))
         q("DELETE FROM convs WHERE id = ?", (c["id"],))
         return self.send_json(200, {"ok": True})
